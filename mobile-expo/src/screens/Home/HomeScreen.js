@@ -46,20 +46,9 @@ const HomeScreen = ({ navigation }) => {
       return;
     }
 
-    Alert.alert(
-      'Trigger SOS Alert',
-      'Are you sure you want to send an emergency alert?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Yes, Send Alert',
-          style: 'destructive',
-          onPress: triggerSOSAlert,
-        },
-      ]
-    );
+    // Directly trigger SOS without confirmation
+    triggerSOSAlert();
   };
-
   const triggerSOSAlert = async () => {
     setLoading(true);
 

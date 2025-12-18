@@ -9,7 +9,11 @@ import {
     Alert,
     ActivityIndicator,
     Modal,
+    Linking,
+    PermissionsAndroid,
+    Platform,
 } from 'react-native';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { emergencyAPI } from '../../api/emergencyAPI';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -86,15 +90,57 @@ const EmergencyContactsScreen = () => {
         );
     };
 
+    const handleCallContact = async (phoneNumber) => {
+        const cleanPhone = phoneNumber.replace(/[^0-9+]/g, '');
+
+        if (Platform.OS === 'android') {
+            try {
+                const granted = await PermissionsAndroid.request(
+                    PermissionsAndroid.PERMISSIONS.CALL_PHONE,
+                    {
+                        title: 'Phone Call Permission',
+                        message: 'App needs access to make calls directly.',
+                        buttonNeutral: 'Ask Me Later',
+                        buttonNegative: 'Cancel',
+                        buttonPositive: 'OK',
+                    },
+                );
+
+                if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                    try {
+                        await IntentLauncher.startActivityAsync('android.intent.action.CALL', {
+                            data: `tel:${cleanPhone}`
+                        });
+                    } catch (e) {
+                        console.error("Direct call failed, falling back to dialer:", e);
+                        Linking.openURL(`tel:${cleanPhone}`);
+                    }
+                } else {
+                    // Fallback if permission denied
+                    Linking.openURL(`tel:${cleanPhone}`);
+                }
+            } catch (err) {
+                console.warn(err);
+                Linking.openURL(`tel:${cleanPhone}`);
+            }
+        } else {
+            // iOS always confirms
+            Linking.openURL(`tel:${cleanPhone}`);
+        }
+    };
+
     const renderContactItem = ({ item }) => (
         <View style={styles.contactCard}>
-            <View style={styles.contactInfo}>
+            <TouchableOpacity
+                style={styles.contactInfo}
+                onPress={() => handleCallContact(item.phone)}
+            >
                 <Text style={styles.contactName}>{item.name}</Text>
                 <Text style={styles.contactPhone}>{item.phone}</Text>
                 {item.relationship ? (
                     <Text style={styles.contactRelation}>{item.relationship}</Text>
                 ) : null}
-            </View>
+            </TouchableOpacity>
             <TouchableOpacity
                 style={styles.deleteButton}
                 onPress={() => handleDeleteContact(item.phone)}>

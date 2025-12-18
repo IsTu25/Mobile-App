@@ -321,19 +321,36 @@ Location: ${locationUrl}
 ${videoLink}
 
 (Please copy and paste the link if it is not clickable)
-      `;
+`;
 
-    const attachments = [
-      {
-        filename: 'evidence.mp4',
-        path: file.path
+    const attachments = [];
+
+    // Check file size using fs
+    const fs = require('fs');
+    try {
+      const stats = fs.statSync(file.path);
+      const fileSizeInBytes = stats.size;
+      // Limit attachment to 25MB (approx 25 * 1024 * 1024 bytes)
+      const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+
+      if (fileSizeInBytes < MAX_ATTACHMENT_SIZE) {
+        attachments.push({
+          filename: 'evidence.mp4',
+          path: file.path
+        });
+        text += `\n(Video file is attached below)\n`;
+      } else {
+        text += `\n(Video file is too large to attach. Please use the link above to view/download)\n`;
       }
-    ];
+    } catch (err) {
+      console.error('Error checking file size:', err);
+    }
 
     if (recognitionResult && recognitionResult.matches && recognitionResult.matches.length > 0) {
       subject = `⚠️ MATCH FOUND: ${recognitionResult.matches.length} Person(s) Identified - ` + subject;
 
-      text = `
+      text += `
+----------------------------------------
 ⚠️⚠️ ALERT: MATCHES FOUND IN VIDEO ⚠️⚠️
 System detected known individuals from the watch list.
 
@@ -367,17 +384,6 @@ CONFIDENCE: ${(match.confidence * 100).toFixed(1)}%
 ----------------------------------------
 `;
     }
-
-    text += `
-User: ${user.fullName}
-Phone: ${user.phoneNumber}
-Location: ${locationUrl}
-
-📄 EVIDENCE VIDEO LINK:
-${videoLink}
-
-(Please copy and paste the link if it is not clickable)
-      `;
 
     // 4. Send Email using Nodemailer
     const nodemailer = require('nodemailer');
