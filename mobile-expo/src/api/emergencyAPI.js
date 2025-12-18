@@ -1,5 +1,6 @@
 import api from './apiClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export const emergencyAPI = {
   // Trigger SOS alert
@@ -63,31 +64,37 @@ export const emergencyAPI = {
   },
 
   // Upload SOS Video
-  uploadVideo: async (videoUri, location) => {
-    const formData = new FormData();
-    formData.append('video', {
-      uri: videoUri,
-      type: 'video/mp4',
-      name: 'evidence.mp4',
-    });
-    formData.append('latitude', location.latitude);
-    formData.append('longitude', location.longitude);
-
-    // Use native fetch for FormData to avoid axios issues
+  uploadVideo: async (videoUri, location, onProgress) => {
     const token = await AsyncStorage.getItem('accessToken');
-    const baseUrl = api.defaults.baseURL; // Get base URL from axios instance
+    const baseUrl = api.defaults.baseURL;
 
-    const response = await fetch(`${baseUrl}/emergency/sos-video`, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        // DO NOT set Content-Type here, let fetch handle it
+    const uploadTask = FileSystem.createUploadTask(
+      `${baseUrl}/emergency/sos-video`,
+      videoUri,
+      {
+        httpMethod: 'POST',
+        uploadType: 1, // FileSystemUploadType.MULTIPART
+        fieldName: 'video',
+        parameters: {
+          latitude: location.latitude.toString(),
+          longitude: location.longitude.toString(),
+        },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       },
-    });
+      (progress) => {
+        if (onProgress) {
+          const percentage = progress.totalBytesSent / progress.totalBytesExpectedToSend;
+          onProgress(percentage);
+        }
+      }
+    );
 
-    const data = await response.json();
-    if (!response.ok) {
+    const response = await uploadTask.uploadAsync();
+    const data = JSON.parse(response.body);
+
+    if (response.status < 200 || response.status >= 300) {
       throw new Error(data.message || 'Upload failed');
     }
     return data;

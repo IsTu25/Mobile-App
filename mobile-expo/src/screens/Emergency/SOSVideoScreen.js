@@ -11,13 +11,17 @@ import {
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { emergencyAPI } from '../../api/emergencyAPI';
 import * as Location from 'expo-location';
+import { useDispatch } from 'react-redux';
+import { clearActiveAlert } from '../../store/slices/emergencySlice';
 
 const SOSVideoScreen = ({ navigation }) => {
+    const dispatch = useDispatch();
     const [permission, requestPermission] = useCameraPermissions();
     const [micPermission, requestMicPermission] = useMicrophonePermissions();
     const [isRecording, setIsRecording] = useState(false);
     const [timeLeft, setTimeLeft] = useState(10);
     const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const cameraRef = useRef(null);
 
     // Specific Police Number mentioned by User
@@ -87,20 +91,25 @@ const SOSVideoScreen = ({ navigation }) => {
             // Get location
             const { coords } = await Location.getCurrentPositionAsync({});
 
-            // Upload
+            // Upload with progress tracking
             await emergencyAPI.uploadVideo(uri, {
                 latitude: coords.latitude,
                 longitude: coords.longitude
+            }, (progress) => {
+                setUploadProgress(progress);
             });
 
             Alert.alert('Evidence Sent', 'Video evidence has been emailed to the nearest police station.');
+            dispatch(clearActiveAlert());
             navigation.goBack();
         } catch (error) {
             console.error('Upload failed:', error);
             Alert.alert('Error', 'Failed to upload video evidence.');
+            dispatch(clearActiveAlert());
             navigation.goBack();
         } finally {
             setUploading(false);
+            setUploadProgress(0);
         }
     };
 
@@ -138,8 +147,15 @@ const SOSVideoScreen = ({ navigation }) => {
 
                 {/* Center Info */}
                 <View style={styles.centerInfo}>
-                    <Text style={styles.alertText}>UPLOADING EVIDENCE TO POLICE</Text>
-                    {uploading && <ActivityIndicator size="large" color="#fff" />}
+                    <Text style={styles.alertText}>
+                        {uploading ? `UPLOADING EVIDENCE: ${Math.round(uploadProgress * 100)}%` : 'UPLOADING EVIDENCE TO POLICE'}
+                    </Text>
+                    {uploading && (
+                        <View style={styles.progressContainer}>
+                            <View style={[styles.progressBarFull, { width: `${uploadProgress * 100}%` }]} />
+                        </View>
+                    )}
+                    {uploading && <ActivityIndicator size="large" color="#fff" style={{ marginTop: 10 }} />}
                 </View>
 
                 {/* Bottom Actions */}
@@ -198,9 +214,22 @@ const styles = StyleSheet.create({
     alertText: {
         color: '#fff',
         fontWeight: 'bold',
-        fontSize: 14,
+        fontSize: 16,
         marginTop: 20,
-        letterSpacing: 1
+        letterSpacing: 1,
+        textAlign: 'center'
+    },
+    progressContainer: {
+        width: '80%',
+        height: 10,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: 5,
+        marginTop: 15,
+        overflow: 'hidden',
+    },
+    progressBarFull: {
+        height: '100%',
+        backgroundColor: '#4ade80', // Green progress bar
     },
     bottomActions: {
         width: '100%',

@@ -209,27 +209,28 @@ class EmergencyController {
    */
   async uploadEvidence(req, res, next) {
     try {
+      console.log('📥 Received video evidence upload request');
       if (!req.file) {
+        console.log('❌ No video file in request');
         return res.status(400).json({ success: false, message: 'No video file provided' });
       }
+      console.log(`📁 File received: ${req.file.originalname} (${req.file.size} bytes)`);
 
       const { latitude, longitude } = req.body;
       const userId = req.userId;
 
-      // Logic to find nearest station and email it
-      // For MVP, we use the specific test station details if finding fails or as primary
-
-      const result = await emergencyService.processVideoEvidence(
+      // Start processing in the background to prevent client timeout
+      emergencyService.processVideoEvidence(
         userId,
         req.file,
         latitude ? parseFloat(latitude) : 0,
         longitude ? parseFloat(longitude) : 0
-      );
+      ).catch(error => console.error('Background Video Processing Error:', error));
 
       res.status(200).json({
         success: true,
-        message: 'Evidence uploaded and police notified',
-        data: result
+        message: 'Evidence upload successful. Notifying police in background.',
+        data: { filename: req.file.filename }
       });
     } catch (error) {
       next(error);

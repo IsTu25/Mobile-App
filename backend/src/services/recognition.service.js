@@ -13,6 +13,7 @@ class RecognitionService {
         this.labeledDescriptors = [];
         this.datasetPath = path.join(__dirname, '../../dataset');
         this.weightsPath = path.join(__dirname, '../utils/weights');
+        this.datasetLoaded = false;
     }
 
     async loadModels() {
@@ -32,6 +33,7 @@ class RecognitionService {
     }
 
     async loadDataset() {
+        if (this.datasetLoaded) return;
         console.log('Loading dataset for recognition...');
         if (!fs.existsSync(this.datasetPath)) {
             fs.mkdirSync(this.datasetPath, { recursive: true });
@@ -92,6 +94,7 @@ class RecognitionService {
                 }
             }
         }
+        this.datasetLoaded = true;
     }
 
     // Helper to load image from disk

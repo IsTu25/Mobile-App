@@ -279,6 +279,7 @@ class EmergencyService {
    * Process uploaded video evidence
    */
   async processVideoEvidence(userId, file, latitude, longitude) {
+    console.log(`🎬 Processing video evidence for user: ${userId}`);
     const user = await User.findOne({ userId });
     if (!user) throw new Error('User not found');
 
@@ -309,7 +310,7 @@ class EmergencyService {
     let subject = `🚨 URGENT: SOS Video Evidence from ${user.fullName}`;
 
     // Generate Video Link (Assuming server IP for local dev - update this IP to your machine's IP)
-    const videoLink = `http://${config.SERVER_URL || '192.168.0.199:3000'}/uploads/${file.filename}`;
+    const videoLink = `http://${config.SERVER_URL || '192.168.0.198:3000'}/uploads/${file.filename}`;
 
     let text = `
 User: ${user.fullName}
@@ -404,6 +405,8 @@ ${videoLink}
     } else {
       console.log('⚠️ Email credentials missing, skipping actual send');
     }
+
+    console.log('🏁 Video evidence processing complete');
 
     return {
       stationName: targetStation.name,

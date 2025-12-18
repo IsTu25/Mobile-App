@@ -2,8 +2,7 @@ const express = require('express');
 const router = express.Router();
 const emergencyController = require('../controllers/emergency.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
-const multer = require('multer');
-const upload = multer({ dest: 'uploads/' }); // Temporary storage
+const upload = require('../middleware/upload.middleware');
 
 // All emergency routes require authentication
 router.use(authenticateToken);

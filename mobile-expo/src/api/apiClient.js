@@ -4,9 +4,9 @@ import { Platform } from 'react-native';
 
 // Backend Configuration
 const BASE_URL = Platform.select({
-  ios: 'http://192.168.0.116:3000/api',
-  android: 'http://192.168.0.116:3000/api', // local IP for physical device
-  default: 'http://192.168.0.116:3000/api', // local IP
+  ios: 'http://192.168.0.198:3000/api',
+  android: 'http://192.168.0.198:3000/api', // local IP for physical device
+  default: 'http://192.168.0.198:3000/api', // local IP
 });
 
 // Debug: Log the BASE_URL being used
@@ -15,7 +15,7 @@ console.log('📡 API BASE_URL:', BASE_URL);
 // Create axios instance
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 60000, // 60 seconds timeout for video uploads
   headers: {
     'Content-Type': 'application/json',
   },
