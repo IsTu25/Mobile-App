@@ -1,196 +1,65 @@
-# Quick Start Guide
+# ⚡ NIRAPOTTA - Quick Start Guide (নিরাপত্তা)
 
-## Prerequisites Checklist
+Get the **Nirapotta** safety system up and running on your local machine in under 10 minutes.
 
-Before running the mobile app, make sure you have:
+---
 
-- [ ] **Node.js 20+** installed ([Download](https://nodejs.org/))
-- [ ] **Android Studio** installed ([Download](https://developer.android.com/studio))
-- [ ] **JDK 17** installed ([Download](https://adoptium.net/))
-- [ ] **Android SDK** configured in Android Studio
-- [ ] **Android Emulator** created or physical device connected
-- [ ] **MongoDB** running (local or Atlas)
+## 📋 Prerequisites
+- **Node.js**: v20 or higher
+- **MongoDB**: Local instance or Atlas URI
+- **Device**: Android Emulator or physical phone with **Expo Go**
+- **Java**: JDK 17 (for Android specific builds if not using Expo Go)
 
-## Quick Setup (3 Steps)
+---
 
-### Step 1: Automatic Setup
+## 🏃 3-Step Setup
 
-Run the setup script:
+### Step 1: Automated Installation
+Run the root setup script to install dependencies for both components (Backend & Mobile):
 ```bash
-# Double-click setup.bat
-# OR run in terminal:
 .\setup.bat
 ```
 
-This will install all dependencies for both backend and mobile.
-
-### Step 2: Start Backend
-
-**Terminal 1:**
+### Step 2: Launch the Backend
 ```bash
 cd backend
-
-# First time only - seed police stations
-npm run seed
-
-# Start server
-npm run dev
+npm run seed  # One-time: Populates police station data
+npm run dev   # Starts server on http://localhost:5000
 ```
+*Note: Ensure your `.env` is configured (see README for details).*
 
-**Wait for:** `✅ MongoDB Connected` and `🚀 Server running on port 5000`
-
-### Step 3: Run Mobile App
-
-**Terminal 2 - Start Metro:**
+### Step 3: Launch the Mobile App
 ```bash
-cd mobile
+cd mobile-expo
 npm start
 ```
-
-**Terminal 3 - Run on Android:**
-```bash
-cd mobile  
-npm run android
-```
-
-**First build:** 5-10 minutes
-**Subsequent builds:** 30 seconds
+*Action: Scan the QR code using the **Expo Go** app on your phone.*
 
 ---
 
-## Configuration
+## 🛠️ Essential Configuration
+**Crucial:** To connect your phone to the backend, you must use your computer's local IP address.
 
-**Important:** Update API URL before running mobile app!
-
-Edit `mobile/src/api/apiClient.js` line 5:
-
-```javascript
-// For Android Emulator
-const BASE_URL = 'http://10.0.2.2:5000/api';
-
-// For Real Device (replace with your PC's IP)
-// const BASE_URL = 'http://192.168.1.XXX:5000/api';
-```
-
-**Find your PC IP:**
-```bash
-ipconfig
-# Look for "IPv4 Address"
-```
+1. Find your IP (Windows: `ipconfig`, Mac: `ifconfig`).
+2. Update `mobile-expo/src/api/apiClient.js`:
+   ```javascript
+   const BASE_URL = 'http://192.168.1.XXX:5000/api'; 
+   ```
 
 ---
 
-## Testing the App
-
-### 1. Register
-- Phone: `+8801234567890`
-- Name: `Test User`
-- Tap "Send OTP"
-
-### 2. Get OTP from Backend Console
-```
-📱 Mock SMS to +8801234567890
-🔐 OTP Code: 123456
-```
-
-### 3. Verify OTP
-- Enter: `123456`
-- Tap "Verify OTP"
-
-### 4. Setup PIN
-- Choose PIN
-- Enter: `1234`
-- Confirm: `1234`
-
-### 5. Trigger SOS
-- Grant location permission
-- Hold SOS button for 2 seconds
-- Confirm alert
+## 🧪 Basic Test Scenario
+1. **Register**: Use any phone number (e.g., `+8801700000000`).
+2. **OTP**: Check the backend terminal; the mock OTP code will be logged there.
+3. **Trigger SOS**: Hold the red SOS button for 2 seconds.
+4. **Verify**: Check the backend console to see the created alert and notified police stations.
 
 ---
 
-## Troubleshooting
-
-### "Metro bundler not running"
-```bash
-cd mobile
-npm start -- --reset-cache
-```
-
-### "Build failed"
-```bash
-cd mobile/android
-.\gradlew clean
-cd ../..
-npm run android
-```
-
-### "Cannot connect to backend"
-- Check backend is running: http://localhost:5000/health
-- Update BASE_URL in `apiClient.js`
-- For device: PC and phone must be on same WiFi
-
-### "Location not working"
-- Android Emulator: Set location in emulator controls (... button)
-- Real Device: Enable GPS in phone settings
+## 📂 Documentation Links
+- [Detailed Mobile Setup](MOBILE_SETUP.md)
+- [Backend Testing Guide](BACKEND_TESTING.md)
+- [Full Implementation Plan](implementation_plan.md)
 
 ---
-
-## What You Need
-
-### For Android Emulator Development:
-1. **Android Studio** with emulator
-2. **JDK 17**
-3. **Node.js**
-4. **MongoDB**
-
-### For Real Device Testing:
-1. All above, plus:
-2. **Android device** with USB debugging enabled
-3. **USB cable**
-4. **PC and phone on same WiFi** (for API connection)
-
----
-
-## Commands Reference
-
-```bash
-# Setup (one time)
-.\setup.bat
-
-# Backend
-cd backend
-npm run seed              # Seed database (first time)
-npm run dev               # Start server
-
-# Mobile
-cd mobile
-npm install               # Install dependencies
-npm start                 # Start Metro bundler
-npm run android           # Build and run
-npm start -- --reset-cache  # Clear cache if needed
-
-# Debug
-adb devices               # Check connected devices
-adb logcat               # View Android logs
-```
-
----
-
-## Need More Help?
-
-See **MOBILE_SETUP.md** for:
-- Detailed Android Studio setup
-- Environment variable configuration
-- Comprehensive troubleshooting
-- iOS setup (macOS only)
-
----
-
-## Success! App Should Show:
-
-1. ✅ Registration screen on emulator/device
-2. ✅ Backend console shows OTP codes
-3. ✅ Can complete registration flow
-4. ✅ SOS button works with location
-5. ✅ Backend creates alerts
+*Stay Safe with Nirapotta.*

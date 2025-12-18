@@ -1,13 +1,13 @@
-# Phase-by-Phase Implementation Guide
+# NIRAPOTTA (নিরাপত্তা) - Phase-by-Phase Implementation Guide
 
-Detailed step-by-step implementation plan for the first two critical features of the Community Safety Reporting System.
+Detailed technical roadmap for the **Nirapotta** safety ecosystem, covering core module development, integration, and deployment.
 
 ---
 
-## Phase A: User Registration & Verification
+## Phase A: User Core & SOS Activation
 
 ### Overview
-Implement a secure authentication system supporting both NID verification and phone-based OTP registration with app-level security.
+Implementation of the foundation: Secure JWT-based authentication with OTP verification and the high-priority SOS alerting system.
 
 ### Architecture
 

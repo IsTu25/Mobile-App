@@ -1,4 +1,4 @@
-# Community Safety Reporting System - Technical Architecture Plan
+# NIRAPOTTA (নিরাপত্তা) - Technical Architecture Plan
 
 A comprehensive mobile application for enhancing personal safety through real-time emergency response, community-driven incident reporting, and intelligent crime analytics.
 
@@ -6,13 +6,12 @@ A comprehensive mobile application for enhancing personal safety through real-ti
 
 > [!IMPORTANT]
 > **Technology Stack Decisions**
-> - **Mobile**: React Native (single codebase for Android/iOS)
+> - **Mobile**: React Native + Expo (Fast development, cross-platform)
 > - **Backend**: Node.js + Express.js
-> - **Database**: MongoDB Atlas (cloud-based, excellent geospatial support)
-> - **Real-time**: Firebase Cloud Messaging for push notifications
-> - **Auth**: Firebase Authentication + Custom NID verification service
-> - **Maps**: Google Maps API for geospatial features
-> - **Hosting**: AWS/DigitalOcean for backend, Firebase for real-time features
+> - **AI/ML**: face-api.js for real-time person identification in SOS videos
+> - **Database**: MongoDB Atlas (Geospatial indexing support)
+> - **Real-time**: Firebase Cloud Messaging & Socket.io for live updates
+> - **Auth**: JWT + Multi-channel OTP (Phone/Email)
 
 > [!WARNING]
 > **NID Verification Requirements**

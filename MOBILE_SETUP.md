@@ -1,246 +1,74 @@
-# Mobile App Setup & Running Instructions
+# 📱 NIRAPOTTA - Mobile Setup Guide (নিরাপত্তা)
 
-Complete guide to set up and run the Community Safety mobile app on Android/iOS.
-
-## Prerequisites
-
-### 1. Development Environment
-
-**Install Node.js:**
-- Download Node.js 20+ from https://nodejs.org/
-- Verify installation:
-  ```bash
-  node --version  # Should show v20.x.x
-  npm --version   # Should show 10.x.x
-  ```
-
-**Install Git:**
-- Windows: https://git-scm.com/download/win
-- Verify: `git --version`
-
-### 2. React Native Environment
-
-#### For Android Development:
-
-**A. Install Java Development Kit (JDK 17):**
-- Download from: https://www.oracle.com/java/technologies/downloads/#java17
-- Or use OpenJDK: https://adoptium.net/
-- Set `JAVA_HOME` environment variable
-
-**B. Install Android Studio:**
-1. Download from: https://developer.android.com/studio
-2. During installation, ensure these are checked:
-   - Android SDK
-   - Android SDK Platform
-   - Android Virtual Device (AVD)
-
-**C. Configure Android SDK:**
-1. Open Android Studio → Settings → Appearance & Behavior → System Settings → Android SDK
-2. Select "SDK Platforms" tab, install:
-   - Android 13.0 (Tiramisu) - API Level 33
-   - Android 12.0 (S) - API Level 31
-3. Select "SDK Tools" tab, install:
-   - Android SDK Build-Tools
-   - Android Emulator
-   - Android SDK Platform-Tools
-   - Intel x86 Emulator Accelerator (if using Intel CPU)
-
-**D. Set Environment Variables:**
-
-Windows:
-```
-ANDROID_HOME = C:\Users\YourUsername\AppData\Local\Android\Sdk
-
-Add to PATH:
-%ANDROID_HOME%\platform-tools
-%ANDROID_HOME%\emulator
-%ANDROID_HOME%\tools
-%ANDROID_HOME%\tools\bin
-```
-
-Verify:
-```bash
-adb --version
-```
-
-#### For iOS Development (macOS only):
-
-**Install Xcode:**
-- Download from Mac App Store
-- Open Xcode, install Command Line Tools
-- Open Xcode → Preferences → Locations → Select Command Line Tools
-
-**Install CocoaPods:**
-```bash
-sudo gem install cocoapods
-```
+Comprehensive instructions for setting up the **Nirapotta** mobile application using React Native and Expo.
 
 ---
 
-## Step-by-Step Setup
+## 🛠️ Environment Setup
 
-### Step 1: Install React Native CLI
+### 1. Core Requirements
+- **Node.js**: v20+ (LTS recommended)
+- **Watchman**: (Mac only) `brew install watchman`
+- **Expo Go App**: Download on your [Android](https://play.google.com/store/apps/details?id=host.exp.exponent) or [iOS](https://apps.apple.com/app/expo-go/id982107779) device.
 
+### 2. Physical Device Setup (Recommended)
+1. Install **Expo Go** from the App Store or Play Store.
+2. Ensure your phone and PC are connected to the **same WiFi network**.
+3. Enable **Location Services** on your device (required for SOS triggers).
+
+### 3. Emulator Setup (Optional)
+- **Android**: Install Android Studio and set up an Android Virtual Device (AVD).
+- **iOS**: Install Xcode and set up a simulator (Mac only).
+
+---
+
+## 🚀 Running the App
+
+### Step 1: Install Dependencies
 ```bash
-npm install -g react-native-cli
-```
-
-### Step 2: Navigate to Mobile Directory
-
-```bash
-cd "e:\Shadab and Co\mobile"
-```
-
-### Step 3: Install Dependencies
-
-```bash
+cd mobile-expo
 npm install
 ```
 
-**Expected time:** 3-5 minutes
+### Step 2: Configure API Endpoint
+The app needs to know where your backend is running. **Do not use `localhost`** if testing on a physical device.
 
-**Troubleshooting:**
-- If you get permission errors, run terminal as Administrator
-- If errors persist, delete `node_modules` and `package-lock.json`, then run `npm install` again
+1. Find your computer's IP address:
+   - Windows: `ipconfig`
+   - Mac/Linux: `ifconfig`
+2. Update `src/api/apiClient.js`:
+   ```javascript
+   const BASE_URL = 'http://192.168.1.XXX:5000/api'; 
+   ```
 
-### Step 4: Configure API Connection
-
-**Edit:** `mobile/src/api/apiClient.js`
-
-Change line 5:
-```javascript
-// For Android Emulator (10.0.2.2 = localhost on PC)
-const BASE_URL = 'http://10.0.2.2:5000/api';
-
-// For Real Android Device on same WiFi network
-// const BASE_URL = 'http://YOUR_PC_IP_ADDRESS:5000/api';
-
-// For iOS Simulator
-// const BASE_URL = 'http://localhost:5000/api';
-```
-
-**To find your PC's IP address:**
+### Step 3: Start Metro Bundler
 ```bash
-# Windows
-ipconfig
-# Look for "IPv4 Address" under your WiFi adapter
+npx expo start
 ```
-
-### Step 5: Start Backend Server
-
-**Open new terminal:**
-```bash
-cd "e:\Shadab and Co\backend"
-
-# First time only: Seed police stations
-npm run seed
-
-# Start server
-npm run dev
-```
-
-**Should see:**
-```
-✅ MongoDB Connected
-🚀 Server running on port 5000
-```
-
-**Leave this terminal running!**
+*Tip: Press `a` for Android Emulator, `i` for iOS Simulator, or scan the QR code with your phone.*
 
 ---
 
-## Running on Android
-
-### Option A: Android Emulator (Recommended for first test)
-
-**1. Create Virtual Device:**
-- Open Android Studio → Tools → AVD Manager
-- Click "Create Virtual Device"
-- Select device: Pixel 5 or Pixel 6
-- Select system image: Android 13 (API 33)
-- Click Finish
-
-**2. Start Emulator:**
-- In AVD Manager, click ▶️ (Play) button
-- Wait for emulator to fully boot (shows home screen)
-
-**3. Run App:**
-
-Open new terminal:
-```bash
-cd "e:\Shadab and Co\mobile"
-
-# Start Metro bundler
-npm start
-```
-
-Open another terminal:
-```bash
-cd "e:\Shadab and Co\mobile"
-
-# Build and run on emulator
-npm run android
-```
-
-**Expected behavior:**
-- Gradle builds the app (first time: 5-10 minutes)
-- App automatically installs on emulator
-- App opens showing Registration screen
-
-### Option B: Physical Android Device
-
-**1. Enable Developer Mode on Phone:**
-- Go to Settings → About Phone
-- Tap "Build Number" 7 times
-- Developer Options now appears in Settings
-
-**2. Enable USB Debugging:**
-- Settings → Developer Options
-- Enable "USB Debugging"
-- Connect phone to PC via USB cable
-
-**3. Verify Connection:**
-```bash
-adb devices
-```
-Should show:
-```
-List of devices attached
-XXXXXXXX    device
-```
-
-**4. Run App:**
-```bash
-cd "e:\Shadab and Co\mobile"
-npm start         # Terminal 1
-npm run android   # Terminal 2
-```
+## 🆘 Testing SOS Functionality
+1. **Location**: Ensure the app has permission to access your location.
+2. **Activation**: Long-press (2 seconds) the central SOS button.
+3. **Haptics**: You should feel a vibration when the alert is triggered.
+4. **Backend Sync**: Open your backend terminal to confirm the alert payload was received.
 
 ---
 
-## Running on iOS (macOS only)
+## ❓ Troubleshooting
 
-### Step 1: Install Pods
-```bash
-cd "e:\Shadab and Co\mobile/ios"
-pod install
-cd ..
-```
+### "Network Error" on physical device
+- **WiFi**: Confirm both devices are on exactly the same network.
+- **Firewall**: Temporarily disable your PC's firewall or allow port `5000`.
+- **IP Address**: Double-check the IP in `apiClient.js`.
 
-### Step 2: Run App
-```bash
-npm run ios
-```
-
-Or open Xcode:
-```bash
-open ios/SafetyApp.xcworkspace
-```
-Then click Run (▶️) button
+### "Metro not responding"
+- Clear cache and restart: `npx expo start -c`
 
 ---
-
-## Troubleshooting
+*Empowering individuals through technology. Stay safe with Nirapotta.*
 
 ### Metro Bundler Port Already in Use
 ```bash
