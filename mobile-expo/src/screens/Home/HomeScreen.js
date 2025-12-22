@@ -7,11 +7,15 @@ import {
   ActivityIndicator,
   Platform,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import * as Location from 'expo-location';
 import SOSButton from '../../components/SOS/SOSButton';
+import DangerStatusBar from '../../components/Danger/DangerStatusBar';
+import NearestDangerAlert from '../../components/Danger/NearestDangerAlert';
 import { emergencyAPI } from '../../api/emergencyAPI';
+import { dangerAPI } from '../../api/dangerAPI';
 import { setActiveAlert } from '../../store/slices/emergencySlice';
 import { logout } from '../../store/slices/authSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,10 +24,13 @@ import { authAPI } from '../../api/authAPI';
 const HomeScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState(null);
+  const [dangerLoading, setDangerLoading] = useState(false);
+  const [riskData, setRiskData] = useState(null);
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
   const { isSOSActive } = useSelector(state => state.emergency);
 
+  // Fetch location and danger prediction
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -33,12 +40,44 @@ const HomeScreen = ({ navigation }) => {
       }
 
       let locationResult = await Location.getCurrentPositionAsync({});
-      setLocation({
+      const currentLocation = {
         latitude: locationResult.coords.latitude,
         longitude: locationResult.coords.longitude,
-      });
+      };
+      setLocation(currentLocation);
+
+      // Fetch danger prediction for current location
+      fetchDangerPrediction(currentLocation.latitude, currentLocation.longitude);
     })();
   }, []);
+
+  const fetchDangerPrediction = async (latitude, longitude) => {
+    setDangerLoading(true);
+    try {
+      // Use traditional risk score (has nearestHotspot data)
+      const response = await dangerAPI.getRiskScore(latitude, longitude);
+      console.log('✅ Danger prediction response:', JSON.stringify(response.data, null, 2));
+      setRiskData(response.data);
+    } catch (error) {
+      console.error('❌ Failed to fetch danger prediction:', error);
+      console.error('Error details:', error.response?.data || error.message);
+
+      // Set a default safe state if API fails
+      setRiskData({
+        riskScore: 0,
+        riskLevel: 'low',
+        location: {
+          latitude,
+          longitude,
+          nearestHotspot: null
+        },
+        factors: [],
+        nearbyIncidents: []
+      });
+    } finally {
+      setDangerLoading(false);
+    }
+  };
 
   const handleSOSTrigger = async () => {
     if (!location) {
@@ -112,53 +151,95 @@ const HomeScreen = ({ navigation }) => {
     );
   };
 
+  const handleViewDangerDetails = () => {
+    if (!riskData) return;
+
+    const { location: riskLocation, riskScore, riskLevel, factors, nearbyIncidents } = riskData;
+    const { nearestHotspot } = riskLocation;
+
+    let detailsMessage = `Location: ${nearestHotspot?.name || 'Unknown'}\n`;
+    detailsMessage += `Risk Score: ${riskScore}/100 (${riskLevel})\n\n`;
+
+    if (factors && factors.length > 0) {
+      detailsMessage += 'Risk Factors:\n';
+      factors.forEach(factor => {
+        detailsMessage += `• ${factor.description}\n`;
+      });
+    }
+
+    if (nearbyIncidents && nearbyIncidents.length > 0) {
+      detailsMessage += `\nRecent Incidents: ${nearbyIncidents.length} reported nearby`;
+    }
+
+    Alert.alert('Danger Zone Details', detailsMessage, [
+      { text: 'OK', style: 'default' }
+    ]);
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.welcomeText}>Welcome, {user?.fullName}!</Text>
-        <Text style={styles.statusText}>
-          {location ? '✓ Location Active' : '⚠ Location Not Available'}
-        </Text>
-      </View>
+      {/* Danger Status Bar - Red/Green indicator */}
+      <DangerStatusBar
+        riskLevel={riskData?.riskLevel}
+        riskScore={riskData?.riskScore}
+        currentZone={riskData?.location?.currentZone}
+        loading={dangerLoading}
+      />
 
-      <View style={styles.sosContainer}>
-        <Text style={styles.title}>Emergency SOS</Text>
-        <Text style={styles.subtitle}>
-          Hold the button for 2 seconds to trigger an emergency alert
-        </Text>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.welcomeText}>Welcome, {user?.fullName}!</Text>
+          <Text style={styles.statusText}>
+            {location ? '✓ Location Active' : '⚠ Location Not Available'}
+          </Text>
+        </View>
 
-        {loading ? (
-          <ActivityIndicator size="large" color="#e63946" />
-        ) : (
-          <SOSButton onTrigger={handleSOSTrigger} disabled={isSOSActive} />
-        )}
+        {/* Nearest Danger Zone Alert */}
+        <NearestDangerAlert
+          nearestHotspot={riskData?.location?.nearestHotspot}
+          currentZone={riskData?.location?.currentZone}
+          onViewDetails={handleViewDangerDetails}
+        />
 
-        {isSOSActive && (
-          <View style={styles.activeAlert}>
-            <Text style={styles.activeAlertText}>🚨 SOS Alert Active</Text>
-          </View>
-        )}
-      </View>
+        <View style={styles.sosContainer}>
+          <Text style={styles.title}>Emergency SOS</Text>
+          <Text style={styles.subtitle}>
+            Hold the button for 2 seconds to trigger an emergency alert
+          </Text>
 
-      <View style={styles.quickActions}>
-        <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+          {loading ? (
+            <ActivityIndicator size="large" color="#e63946" />
+          ) : (
+            <SOSButton onTrigger={handleSOSTrigger} disabled={isSOSActive} />
+          )}
 
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('EmergencyContacts')}>
-          <Text style={styles.actionButtonText}>📞 Manage Emergency Contacts</Text>
-        </TouchableOpacity>
+          {isSOSActive && (
+            <View style={styles.activeAlert}>
+              <Text style={styles.activeAlertText}>🚨 SOS Alert Active</Text>
+            </View>
+          )}
+        </View>
 
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('FaceRecognition')}>
-          <Text style={styles.actionButtonText}>👁️ Scan Faces</Text>
-        </TouchableOpacity>
+        <View style={styles.quickActions}>
+          <Text style={styles.quickActionsTitle}>Quick Actions</Text>
 
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => navigation.navigate('EmergencyContacts')}>
+            <Text style={styles.actionButtonText}>📞 Manage Emergency Contacts</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => navigation.navigate('FaceRecognition')}>
+            <Text style={styles.actionButtonText}>👁️ Scan Faces</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleLogout}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </View>
   );
 };
@@ -168,10 +249,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  scrollView: {
+    flex: 1,
+  },
   header: {
     backgroundColor: '#fff',
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 20,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     elevation: 4,
@@ -179,6 +263,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    marginBottom: 8,
   },
   welcomeText: {
     fontSize: 24,
@@ -191,10 +276,10 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   sosContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    paddingVertical: 30,
   },
   title: {
     fontSize: 28,

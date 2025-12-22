@@ -50,6 +50,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/emergency', emergencyRoutes);
 app.use('/api/recognition', require('./routes/recognition.routes'));
+app.use('/api/danger', require('./routes/danger-prediction.routes')); // NEW: Danger prediction AI
 
 // Welcome route
 app.get('/', (req, res) => {

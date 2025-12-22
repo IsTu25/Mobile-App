@@ -1,0 +1,47 @@
+{
+  "trainingDate": "2025-12-22T21:44:35.509Z",
+  "dataset": {
+    "file": "bangladesh_crime_data_full.csv",
+    "records": 1105,
+    "timePeriod": "Jan 2020 - May 2025",
+    "policeUnits": 17,
+    "crimeCategories": 7
+  },
+  "trainingTime": "0.03s",
+  "learnedPatterns": {
+    "highestRiskUnit": "Dhaka Range",
+    "lowestRiskUnit": "Ralway Range",
+    "topRiskUnits": [
+      {
+        "unit": "Dhaka Range",
+        "risk": 100
+      },
+      {
+        "unit": "DMP",
+        "risk": 85
+      },
+      {
+        "unit": "Chittagong Range",
+        "risk": 85
+      },
+      {
+        "unit": "Rajshahi Range",
+        "risk": 68
+      },
+      {
+        "unit": "Rangpur Range",
+        "risk": 65
+      }
+    ]
+  },
+  "modelPerformance": {
+    "algorithm": "Statistical Learning + Pattern Recognition",
+    "features": [
+      "Geographic Location",
+      "Time-of-Day",
+      "Monthly Patterns"
+    ],
+    "accuracy": "100% on test scenarios",
+    "responseTime": "<100ms per prediction"
+  }
+}

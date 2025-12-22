@@ -1,0 +1,153 @@
+const axios = require('axios');
+
+/**
+ * Comprehensive Danger Prediction API Test
+ * Tests different locations across Bangladesh
+ */
+
+const BASE_URL = 'http://192.168.0.104:3000';
+
+// Test locations across Bangladesh
+const testLocations = [
+    // HIGH-RISK AREAS (Dhaka)
+    { name: 'Uttara Center', lat: 23.8754, lon: 90.3965, expectedRisk: 'high' },
+    { name: 'Gulshan Center', lat: 23.7808, lon: 90.4161, expectedRisk: 'high' },
+    { name: 'Paltan', lat: 23.7338, lon: 90.4125, expectedRisk: 'high' },
+
+    // MEDIUM-RISK AREAS (Dhaka)
+    { name: 'Dhanmondi', lat: 23.7465, lon: 90.3765, expectedRisk: 'medium' },
+    { name: 'Mirpur', lat: 23.8223, lon: 90.3654, expectedRisk: 'medium' },
+    { name: 'Mohammadpur', lat: 23.7654, lon: 90.3547, expectedRisk: 'medium' },
+
+    // LOW-RISK AREAS (Dhaka)
+    { name: 'Demra', lat: 23.7456, lon: 90.5234, expectedRisk: 'low' },
+    { name: 'Lalbag', lat: 23.7197, lon: 90.3854, expectedRisk: 'low' },
+
+    // OTHER CITIES
+    { name: 'Chittagong City', lat: 22.3569, lon: 91.7832, expectedRisk: 'medium' },
+    { name: 'Sylhet City', lat: 24.8949, lon: 91.8687, expectedRisk: 'low' },
+
+    // CUSTOM TEST LOCATIONS (Add your own!)
+    // { name: 'Your Location', lat: 23.xxxx, lon: 90.xxxx, expectedRisk: 'unknown' },
+];
+
+async function testDangerAPI() {
+    console.log('\n🧪 COMPREHENSIVE DANGER PREDICTION TEST\n');
+    console.log('='.repeat(80));
+    console.log('\nThis test shows how the model works with REAL Bangladesh data');
+    console.log('CSV Data: Crime statistics by police unit (DMP, CMP, etc.)');
+    console.log('Hotspots: GPS coordinates of known high-crime areas');
+    console.log('Model: Combines both to calculate risk at any GPS location\n');
+    console.log('='.repeat(80));
+
+    let passCount = 0;
+    let failCount = 0;
+
+    for (const location of testLocations) {
+        console.log(`\n📍 Testing: ${location.name}`);
+        console.log(`   Coordinates: ${location.lat}, ${location.lon}`);
+        console.log(`   Expected Risk: ${location.expectedRisk.toUpperCase()}`);
+
+        try {
+            const response = await axios.post(`${BASE_URL}/api/danger/risk-score`, {
+                latitude: location.lat,
+                longitude: location.lon
+            });
+
+            const data = response.data.data;
+
+            console.log(`\n   ✅ API Response:`);
+            console.log(`   Risk Score: ${data.riskScore}/100`);
+            console.log(`   Risk Level: ${data.riskLevel.toUpperCase()}`);
+
+            // Show current zone
+            if (data.location && data.location.currentZone) {
+                console.log(`   Current Zone: ${data.location.currentZone.name}`);
+            }
+
+            // Show nearest hotspot
+            if (data.location && data.location.nearestHotspot) {
+                const distanceKm = (data.location.nearestHotspot.distance / 1000).toFixed(2);
+                console.log(`   Nearest Hotspot: ${data.location.nearestHotspot.name} (${distanceKm}km away)`);
+            }
+
+            // Show risk breakdown
+            if (data.breakdown) {
+                console.log(`\n   📊 Risk Breakdown:`);
+                console.log(`      Hotspot Proximity: ${data.breakdown.hotspotRisk}/100`);
+                console.log(`      Historical Crimes: ${data.breakdown.historicalRisk}/100`);
+                console.log(`      Time Factor: ${data.breakdown.timeRisk}/100`);
+                console.log(`      Day Factor: ${data.breakdown.dayRisk}/100`);
+            }
+
+            // Show risk factors
+            if (data.factors && data.factors.length > 0) {
+                console.log(`\n   ⚠️  Risk Factors:`);
+                data.factors.forEach(f => {
+                    console.log(`      • ${f.description} (${f.weight}% weight)`);
+                });
+            }
+
+            // Verify expected vs actual
+            const actualRiskCategory =
+                data.riskScore >= 75 ? 'high' :
+                    data.riskScore >= 40 ? 'medium' : 'low';
+
+            if (location.expectedRisk === 'unknown' || actualRiskCategory === location.expectedRisk) {
+                console.log(`\n   ✅ TEST PASSED: Risk matches expectation`);
+                passCount++;
+            } else {
+                console.log(`\n   ⚠️  TEST WARNING: Expected ${location.expectedRisk}, got ${actualRiskCategory}`);
+                failCount++;
+            }
+
+        } catch (error) {
+            console.log(`   ❌ Error: ${error.message}`);
+            if (error.response) {
+                console.log(`   Status: ${error.response.status}`);
+                console.log(`   Data:`, error.response.data);
+            }
+            failCount++;
+        }
+
+        console.log('\n' + '-'.repeat(80));
+    }
+
+    // Summary
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`\n📊 TEST SUMMARY:`);
+    console.log(`   ✅ Passed: ${passCount}`);
+    console.log(`   ⚠️  Warnings: ${failCount}`);
+    console.log(`   Total: ${testLocations.length}`);
+    console.log(`\n${'='.repeat(80)}`);
+
+    // Explanation
+    console.log(`\n💡 HOW THE MODEL WORKS:\n`);
+    console.log(`1. CSV Data (Crime Statistics):`);
+    console.log(`   - Police units: DMP, CMP, Dhaka Range, etc.`);
+    console.log(`   - Crime counts: Robbery, Murder, Theft, etc.`);
+    console.log(`   - Time period: Jan 2020 - May 2025`);
+    console.log(`   - Total records: 1,107 monthly crime reports`);
+
+    console.log(`\n2. Hotspot Coordinates (Hardcoded):`);
+    console.log(`   - 11 known high-crime areas in Dhaka`);
+    console.log(`   - GPS coordinates from Google Maps`);
+    console.log(`   - Risk levels based on CSV statistics`);
+
+    console.log(`\n3. Risk Calculation:`);
+    console.log(`   - Hotspot Proximity (40%): How close to known danger zones`);
+    console.log(`   - Historical Crimes (30%): Crime frequency from CSV data`);
+    console.log(`   - Time Factor (20%): Current time of day`);
+    console.log(`   - Day Factor (10%): Day of week`);
+
+    console.log(`\n4. Final Score:`);
+    console.log(`   - 0-39: LOW RISK (Green)`);
+    console.log(`   - 40-59: MEDIUM RISK (Yellow)`);
+    console.log(`   - 60-74: HIGH RISK (Orange)`);
+    console.log(`   - 75-100: CRITICAL RISK (Red)`);
+
+    console.log(`\n${'='.repeat(80)}\n`);
+}
+
+// Run the test
+testDangerAPI().catch(console.error);
