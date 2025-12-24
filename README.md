@@ -29,10 +29,16 @@
 - **Route Safety Checker**: Analyze your planned travel route and receive safety recommendations.
 - **Localized Statistics**: Detailed crime trends and safety scores for specific areas.
 
+### 🧠 Digital Gut Feeling (AI Subconscious Detection)
+- **Subconscious Risk Detection**: Uses mobile sensors (Accelerometer/Gyroscope) to detect subconscious signs of fear (micro-tremors, hesitation, agitation).
+- **Proactive Alerts**: Automatically prompts "Are you safe?" if high-stress movement patterns are detected.
+- **Privacy-First**: Analysis happens locally or on a private server; raw sensor data is never stored permanently.
+
 ### 🔒 Privacy & Security
 - **OTP Verification**: Secure login via phone and email OTP.
 - **App Security**: PIN-based local protection for sensitive safety data.
 - **Encrypted Data**: National ID (NID) and personal data are stored using industry-standard encryption.
+
 
 ---
 
@@ -42,7 +48,7 @@
 |---|---|
 | **Mobile App** | React Native (Expo SDK 52+), Redux Toolkit, React Navigation |
 | **Backend API** | Node.js, Express.js, MongoDB Atlas (Geospatial Indexing) |
-| **AI / ML** | face-api.js (for recognition & identification) |
+| **AI / ML** | **Digital Gut Feeling:** Python, TensorFlow (LSTM), Flask <br> **Face ID:** face-api.js |
 | **Infrastructure** | Firebase (FCM, Storage, Admin SDK), Twilio & NodeMailer |
 | **Security** | JWT, bcryptjs, express-rate-limit, Helmet |
 
@@ -52,6 +58,10 @@
 
 ```text
 NIRAPOTTA/
+├── ai-research/        # Python AI Model (Digital Gut Feeling)
+│   ├── UCI HAR Dataset/# Training Data
+│   ├── train_model.py  # LSTM Training Script
+│   └── server.py       # Flask API for Risk Prediction
 ├── backend/            # Express.js API & Business Logic
 │   ├── src/
 │   │   ├── controllers/# Request handlers
@@ -87,7 +97,21 @@ npm run seed  # Feed initial police station data
 npm run dev   # Start development server
 ```
 
-### 2. Setup Mobile App
+### 2. Setup AI Server (Optional - for Gut Feeling)
+```bash
+cd ai-research
+# Setup Python Environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+# Download Data & Train (First time only)
+./download_data.sh
+python train_model.py
+# Start Server
+python server.py
+```
+
+### 3. Setup Mobile App
 ```bash
 cd mobile-expo
 npm install
