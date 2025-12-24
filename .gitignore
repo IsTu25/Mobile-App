@@ -39,3 +39,11 @@ Thumbs.db
 *.tmp
 temp/
 tmp/
+
+# AI Research
+ai-research/venv/
+ai-research/UCI HAR Dataset/
+ai-research/dataset.zip
+ai-research/__pycache__/
+*.h5
+

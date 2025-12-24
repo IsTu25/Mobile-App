@@ -27,11 +27,17 @@ import { logout } from '../../store/slices/authSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../../api/authAPI';
 
+import VoiceTriggerService from '../../services/VoiceTriggerService';
+import GutFeelingService from '../../services/GutFeelingService';
+
 const HomeScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState(null);
   const [dangerLoading, setDangerLoading] = useState(false);
   const [riskData, setRiskData] = useState(null);
+  const [gutFeelingScore, setGutFeelingScore] = useState(0); // 0-1
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [triggerPhrase, setTriggerPhrase] = useState('help');
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
   const { isSOSActive } = useSelector(state => state.emergency);
@@ -40,6 +46,88 @@ const HomeScreen = ({ navigation }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const radarAnim = useRef(new Animated.Value(0)).current;
+
+  // Initialize Services
+  useEffect(() => {
+    // 1. Voice
+    VoiceTriggerService.setCallbacks(
+      () => {
+        Alert.alert('VOICE TRIGGER DETECTED', `Phrase "${triggerPhrase}" heard. Activating SOS...`);
+        handleSOSTrigger();
+      },
+      (e) => { }
+    );
+
+    // 2. Digital Gut Feeling (Start Monitoring)
+    GutFeelingService.startMonitoring();
+    GutFeelingService.setCallback((score) => {
+      // Smoothly update visual score
+      setGutFeelingScore(prev => (prev * 0.7) + (score * 0.3));
+
+      // Auto-Trigger if VERY high risk (e.g. > 0.95)
+      if (score > 0.95) {
+        Alert.alert("DANGER DETECTED", "High stress patterns detected. Are you safe?", [
+          { text: "I'm Safe", style: "cancel" },
+          { text: "SOS", style: "destructive", onPress: () => handleSOSTrigger() }
+        ]);
+      }
+    });
+
+    // Cleanup
+    return () => {
+      VoiceTriggerService.stopListening();
+      GutFeelingService.stopMonitoring();
+    };
+  }, [triggerPhrase, location]);
+
+  const toggleVoiceMode = async () => {
+    if (isVoiceActive) {
+      await VoiceTriggerService.stopListening();
+      setIsVoiceActive(false);
+      Alert.alert('Voice Guard', 'System Deactivated.');
+    } else {
+      Alert.alert(
+        'Activate Voice Guard?',
+        `System will listen for the phrase: "${triggerPhrase}".\n\n(Note: Requires background permission for full functionality)`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Activate',
+            onPress: async () => {
+              await VoiceTriggerService.startListening();
+              setIsVoiceActive(true);
+            }
+          }
+        ]
+      );
+    }
+  };
+
+  const changeTriggerPhrase = () => {
+    Alert.prompt(
+      'Set Trigger Phrase',
+      'Enter a word or short phrase to trigger SOS automatically.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: (text) => {
+            if (text && text.length > 0) {
+              setTriggerPhrase(text);
+              VoiceTriggerService.setTriggerWord(text);
+              Alert.alert('Success', `Trigger phrase updated to: "${text}"`);
+              // Restart if active
+              if (isVoiceActive) {
+                VoiceTriggerService.stopListening().then(() => VoiceTriggerService.startListening());
+              }
+            }
+          }
+        }
+      ],
+      'plain-text',
+      triggerPhrase
+    );
+  };
 
   // Fetch location and danger prediction
   useEffect(() => {
@@ -231,11 +319,41 @@ const HomeScreen = ({ navigation }) => {
             <View>
               <Text style={styles.greetingText}>SYSTEM ONLINE</Text>
               <Text style={styles.userText}>Welcome, {user?.fullName?.split(' ')[0]}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <Ionicons
+                  name="pulse"
+                  size={14}
+                  color={gutFeelingScore > 0.6 ? "#ef4444" : "#10b981"}
+                />
+                <Text style={{
+                  color: gutFeelingScore > 0.6 ? "#ef4444" : "#64748b",
+                  fontSize: 10,
+                  fontWeight: "700",
+                  marginLeft: 6,
+                  letterSpacing: 1
+                }}>
+                  GUT FEELING: {gutFeelingScore > 0.6 ? "HIGH STRESS" : "CALM"} ({(gutFeelingScore * 100).toFixed(0)}%)
+                </Text>
+              </View>
             </View>
             <View style={[styles.statusBadge, location ? styles.statusActive : styles.statusInactive]}>
               <View style={[styles.statusDot, location ? styles.dotActive : styles.dotInactive]} />
               <Text style={styles.statusText}>{location ? 'GPS LOCKED' : 'SEARCHING...'}</Text>
             </View>
+          </View>
+
+          {/* Voice Guard Control */}
+          <View style={styles.voiceControlContainer}>
+            <TouchableOpacity
+              style={[styles.voiceBtn, isVoiceActive ? styles.voiceBtnActive : styles.voiceBtnInactive]}
+              onPress={toggleVoiceMode}
+              onLongPress={changeTriggerPhrase}
+            >
+              <Ionicons name={isVoiceActive ? "mic" : "mic-off"} size={20} color="#fff" />
+              <Text style={styles.voiceBtnText}>
+                {isVoiceActive ? `LISTENING: "${triggerPhrase.toUpperCase()}"` : "VOICE GUARD OFF"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Danger Status Bar */}
@@ -542,6 +660,33 @@ const styles = StyleSheet.create({
     color: '#f1f5f9',
     letterSpacing: 0.5,
   },
+  voiceControlContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  voiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+  },
+  voiceBtnInactive: {
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    borderColor: '#334155',
+  },
+  voiceBtnActive: {
+    backgroundColor: 'rgba(220, 38, 38, 0.2)',
+    borderColor: '#ef4444',
+  },
+  voiceBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+    letterSpacing: 1,
+  }
 });
 
 export default HomeScreen;
