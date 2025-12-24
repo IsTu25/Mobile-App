@@ -122,7 +122,7 @@ class DangerPredictionController {
     }
 
     /**
-     * Get safe route suggestion
+     * Get safe route suggestion (Basic midpoint check)
      * POST /api/danger/safe-route
      * Body: { fromLat, fromLon, toLat, toLon }
      */
@@ -148,6 +148,34 @@ class DangerPredictionController {
                 success: true,
                 message: 'Route analysis complete',
                 data: routeData
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    /**
+     * Analyze full route path for safety
+     * POST /api/danger/analyze-route
+     * Body: { routePath: [{latitude, longitude}, ...] }
+     */
+    async analyzeRoute(req, res, next) {
+        try {
+            const { routePath } = req.body;
+
+            if (!routePath || !Array.isArray(routePath) || routePath.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Valid routePath array is required'
+                });
+            }
+
+            const assessment = await dangerPredictionService.analyzeRouteSafety(routePath);
+
+            res.status(200).json({
+                success: true,
+                message: 'Route safety assessed',
+                data: assessment
             });
         } catch (error) {
             next(error);

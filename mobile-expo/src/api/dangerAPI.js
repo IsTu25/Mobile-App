@@ -100,6 +100,23 @@ export const dangerAPI = {
     },
 
     /**
+     * Analyze full route path for safety
+     * @param {Array<{latitude: number, longitude: number}>} routePath 
+     * @returns {Promise} Safety analysis
+     */
+    analyzeRoute: async (routePath) => {
+        try {
+            const response = await apiClient.post('/danger/analyze-route', {
+                routePath
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error analyzing route:', error);
+            throw error;
+        }
+    },
+
+    /**
      * Get dataset statistics
      * @returns {Promise} Dataset stats
      */

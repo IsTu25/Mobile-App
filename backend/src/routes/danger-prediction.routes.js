@@ -13,6 +13,7 @@ router.get('/stats', dangerPredictionController.getDatasetStats);
 // NEW: AI Model routes (trained on Bangladesh data)
 router.post('/ai-risk-score', dangerPredictionController.getAIRiskScore);
 router.get('/ai-model-info', dangerPredictionController.getAIModelInfo);
+router.post('/analyze-route', dangerPredictionController.analyzeRoute); // New Route Analysis
 
 // Protected routes (require authentication)
 // Uncomment when ready to require auth

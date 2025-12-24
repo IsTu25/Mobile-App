@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,15 @@ import {
   Platform,
   TouchableOpacity,
   ScrollView,
+  StatusBar,
+  Animated,
+  Dimensions
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import * as Location from 'expo-location';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+
 import SOSButton from '../../components/SOS/SOSButton';
 import DangerStatusBar from '../../components/Danger/DangerStatusBar';
 import NearestDangerAlert from '../../components/Danger/NearestDangerAlert';
@@ -29,6 +35,11 @@ const HomeScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
   const { isSOSActive } = useSelector(state => state.emergency);
+
+  // Animated values
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const radarAnim = useRef(new Animated.Value(0)).current;
 
   // Fetch location and danger prediction
   useEffect(() => {
@@ -49,20 +60,48 @@ const HomeScreen = ({ navigation }) => {
       // Fetch danger prediction for current location
       fetchDangerPrediction(currentLocation.latitude, currentLocation.longitude);
     })();
+
+    // Breathing pulse animation for button
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Radar 'ping' animation
+    Animated.loop(
+      Animated.timing(radarAnim, {
+        toValue: 1,
+        duration: 2500,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    // Fade in content
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
+
   }, []);
 
   const fetchDangerPrediction = async (latitude, longitude) => {
     setDangerLoading(true);
     try {
-      // Use traditional risk score (has nearestHotspot data)
       const response = await dangerAPI.getRiskScore(latitude, longitude);
-      console.log('✅ Danger prediction response:', JSON.stringify(response.data, null, 2));
       setRiskData(response.data);
     } catch (error) {
-      console.error('❌ Failed to fetch danger prediction:', error);
-      console.error('Error details:', error.response?.data || error.message);
-
-      // Set a default safe state if API fails
+      // Graceful error handling
       setRiskData({
         riskScore: 0,
         riskLevel: 'low',
@@ -81,16 +120,14 @@ const HomeScreen = ({ navigation }) => {
 
   const handleSOSTrigger = async () => {
     if (!location) {
-      Alert.alert('Waiting for location...');
+      Alert.alert('System Alert', 'Acquiring GPS coordinates. Please wait.');
       return;
     }
-
-    // Directly trigger SOS without confirmation
     triggerSOSAlert();
   };
+
   const triggerSOSAlert = async () => {
     setLoading(true);
-
     try {
       const result = await emergencyAPI.triggerSOS(
         {
@@ -99,20 +136,11 @@ const HomeScreen = ({ navigation }) => {
         },
         'button'
       );
-
-      // Navigate to Video Evidence Screen immediately
       navigation.navigate('SOSVideo');
-
       dispatch(setActiveAlert(result.data.alert));
-
-      //     },
-      //   ]
-      // );
-      // We don't show alert here anymore because we are navigating to Video Screen immediately.
-      // The Video Screen handles the "calling police" and "evidence" part.
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to trigger SOS';
-      Alert.alert('Error', message);
+      Alert.alert('Connection Error', message);
     } finally {
       setLoading(false);
     }
@@ -120,31 +148,20 @@ const HomeScreen = ({ navigation }) => {
 
   const handleLogout = () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      'Terminate Session',
+      'Confirm disconnection from secure server?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Logout',
+          text: 'Disconnect',
           style: 'destructive',
           onPress: async () => {
-            try {
-              // Call API to logout (optional, best effort)
-              await authAPI.logout();
-            } catch (error) {
-              console.log('Logout API failed', error);
-            }
-            // Clear local storage and state
+            try { await authAPI.logout(); } catch (e) { }
             await AsyncStorage.removeItem('accessToken');
             await AsyncStorage.removeItem('refreshToken');
             await AsyncStorage.removeItem('user');
             dispatch(logout());
-
-            // Navigate to Login
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Login' }],
-            });
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
           }
         }
       ]
@@ -153,7 +170,6 @@ const HomeScreen = ({ navigation }) => {
 
   const handleViewDangerDetails = () => {
     if (!riskData) return;
-
     const { location: riskLocation, riskScore, riskLevel, factors, nearbyIncidents } = riskData;
     const { nearestHotspot } = riskLocation;
 
@@ -171,74 +187,156 @@ const HomeScreen = ({ navigation }) => {
       detailsMessage += `\nRecent Incidents: ${nearbyIncidents.length} reported nearby`;
     }
 
-    Alert.alert('Danger Zone Details', detailsMessage, [
-      { text: 'OK', style: 'default' }
-    ]);
+    Alert.alert('Security Analysis', detailsMessage, [{ text: 'Dismiss', style: 'cancel' }]);
   };
+
+  const QuickActionCard = ({ title, icon, color, onPress }) => (
+    <TouchableOpacity style={styles.actionCard} onPress={onPress} activeOpacity={0.6}>
+      <LinearGradient
+        colors={['#1e293b', '#0f172a']}
+        style={styles.actionCardGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={[styles.actionIconContainer, { borderColor: color }]}>
+          <Ionicons name={icon} size={22} color={color} />
+        </View>
+        <Text style={styles.actionTitle}>{title}</Text>
+        <Ionicons name="chevron-forward" size={18} color="#64748b" />
+      </LinearGradient>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
-      {/* Danger Status Bar - Red/Green indicator */}
-      <DangerStatusBar
-        riskLevel={riskData?.riskLevel}
-        riskScore={riskData?.riskScore}
-        currentZone={riskData?.location?.currentZone}
-        loading={dangerLoading}
+      <StatusBar barStyle="light-content" />
+
+      {/* Deep Dark Background */}
+      <LinearGradient
+        colors={['#020617', '#0f172a', '#1e293b']}
+        style={styles.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       />
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.welcomeText}>Welcome, {user?.fullName}!</Text>
-          <Text style={styles.statusText}>
-            {location ? '✓ Location Active' : '⚠ Location Not Available'}
-          </Text>
-        </View>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View style={{ opacity: fadeAnim }}>
 
-        {/* Nearest Danger Zone Alert */}
-        <NearestDangerAlert
-          nearestHotspot={riskData?.location?.nearestHotspot}
-          currentZone={riskData?.location?.currentZone}
-          onViewDetails={handleViewDangerDetails}
-        />
-
-        <View style={styles.sosContainer}>
-          <Text style={styles.title}>Emergency SOS</Text>
-          <Text style={styles.subtitle}>
-            Hold the button for 2 seconds to trigger an emergency alert
-          </Text>
-
-          {loading ? (
-            <ActivityIndicator size="large" color="#e63946" />
-          ) : (
-            <SOSButton onTrigger={handleSOSTrigger} disabled={isSOSActive} />
-          )}
-
-          {isSOSActive && (
-            <View style={styles.activeAlert}>
-              <Text style={styles.activeAlertText}>🚨 SOS Alert Active</Text>
+          {/* Header / Welcome Area */}
+          <View style={styles.headerSection}>
+            <View>
+              <Text style={styles.greetingText}>SYSTEM ONLINE</Text>
+              <Text style={styles.userText}>Welcome, {user?.fullName?.split(' ')[0]}</Text>
             </View>
-          )}
-        </View>
+            <View style={[styles.statusBadge, location ? styles.statusActive : styles.statusInactive]}>
+              <View style={[styles.statusDot, location ? styles.dotActive : styles.dotInactive]} />
+              <Text style={styles.statusText}>{location ? 'GPS LOCKED' : 'SEARCHING...'}</Text>
+            </View>
+          </View>
 
-        <View style={styles.quickActions}>
-          <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+          {/* Danger Status Bar */}
+          <View style={styles.statusBarContainer}>
+            <DangerStatusBar
+              riskLevel={riskData?.riskLevel}
+              riskScore={riskData?.riskScore}
+              currentZone={riskData?.location?.currentZone}
+              loading={dangerLoading}
+            />
+          </View>
 
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => navigation.navigate('EmergencyContacts')}>
-            <Text style={styles.actionButtonText}>📞 Manage Emergency Contacts</Text>
-          </TouchableOpacity>
+          {/* Nearest Danger Alert */}
+          <View style={styles.alertWrapper}>
+            <NearestDangerAlert
+              nearestHotspot={riskData?.location?.nearestHotspot}
+              currentZone={riskData?.location?.currentZone}
+              onViewDetails={handleViewDangerDetails}
+            />
+          </View>
 
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => navigation.navigate('FaceRecognition')}>
-            <Text style={styles.actionButtonText}>👁️ Scan Faces</Text>
-          </TouchableOpacity>
+          {/* SOS Section - Radar Style */}
+          <View style={styles.sosSection}>
+            <Text style={styles.sosHeader}>EMERGENCY PROTOCOL</Text>
 
-          <TouchableOpacity onPress={handleLogout}>
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
+            <View style={styles.radarContainer}>
+              {/* Radar Ripple 1 */}
+              <Animated.View
+                style={[
+                  styles.radarRing,
+                  {
+                    transform: [{ scale: radarAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 2.5] }) }],
+                    opacity: radarAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] })
+                  }
+                ]}
+              />
+              {/* Radar Ripple 2 - Delayed */}
+              <Animated.View
+                style={[
+                  styles.radarRing,
+                  {
+                    transform: [{ scale: radarAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 2] }) }],
+                    opacity: radarAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.4, 0] })
+                  }
+                ]}
+              />
+
+              <Animated.View style={[styles.sosButtonWrapper, { transform: [{ scale: pulseAnim }] }]}>
+                {loading ? (
+                  <View style={styles.loadingSOS}>
+                    <ActivityIndicator size="large" color="#fff" />
+                  </View>
+                ) : (
+                  <SOSButton onTrigger={handleSOSTrigger} disabled={isSOSActive} />
+                )}
+              </Animated.View>
+            </View>
+
+            {isSOSActive && (
+              <View style={styles.activeAlertBanner}>
+                <Ionicons name="warning" size={20} color="#fff" />
+                <Text style={styles.activeAlertText}>SOS SIGNAL BROADCASTING</Text>
+              </View>
+            )}
+
+            <Text style={styles.sosInstruction}>PRESS & HOLD TO TRIGGER</Text>
+          </View>
+
+          {/* Quick Actions Grid */}
+          <View style={styles.actionsContainer}>
+            <Text style={styles.sectionHeader}>QUICK ACCESS</Text>
+
+            <QuickActionCard
+              title="Trusted Contacts"
+              icon="people"
+              color="#38bdf8"
+              onPress={() => navigation.navigate('EmergencyContacts')}
+            />
+
+            <QuickActionCard
+              title="Biometric Scan"
+              icon="scan-circle"
+              color="#34d399"
+              onPress={() => navigation.navigate('FaceRecognition')}
+            />
+
+            <QuickActionCard
+              title="Safe Navigation"
+              icon="map"
+              color="#fbbf24"
+              onPress={() => navigation.navigate('SafeRoute')}
+            />
+
+            <QuickActionCard
+              title="Terminate Session"
+              icon="power"
+              color="#f87171"
+              onPress={handleLogout}
+            />
+          </View>
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -247,101 +345,202 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#020617', // Slate 950
+  },
+  background: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   scrollView: {
     flex: 1,
   },
-  header: {
-    backgroundColor: '#fff',
-    padding: 20,
-    paddingTop: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    marginBottom: 8,
+  scrollContent: {
+    paddingBottom: 40,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
   },
-  welcomeText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+  headerSection: {
+    paddingHorizontal: 24,
+    marginBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  greetingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#94a3b8',
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  userText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#e2e8f0',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    borderWidth: 1,
+  },
+  statusActive: {
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  statusInactive: {
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  dotActive: {
+    backgroundColor: '#10b981',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+  },
+  dotInactive: {
+    backgroundColor: '#ef4444',
   },
   statusText: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 5,
+    color: '#94a3b8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
-  sosContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    paddingVertical: 30,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
+  statusBarContainer: {
+    paddingHorizontal: 20,
     marginBottom: 10,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 40,
+  alertWrapper: {
     paddingHorizontal: 20,
+    marginBottom: 20,
   },
-  activeAlert: {
-    marginTop: 30,
-    backgroundColor: '#e63946',
+  sosSection: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    marginBottom: 20,
+  },
+  sosHeader: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#ef4444',
+    letterSpacing: 3,
+    marginBottom: 20,
+    opacity: 0.8,
+  },
+  radarContainer: {
+    position: 'relative',
+    width: 260,
+    height: 260,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radarRing: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+  },
+  sosButtonWrapper: {
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  loadingSOS: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: '#b91c1c',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fca5a5',
+  },
+  sosInstruction: {
+    marginTop: 20,
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  activeAlertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(220, 38, 38, 0.9)',
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 20,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#fca5a5',
   },
   activeAlertText: {
     color: '#fff',
-    fontSize: 16,
     fontWeight: 'bold',
+    fontSize: 12,
+    letterSpacing: 1,
   },
-  quickActions: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  actionsContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 20,
   },
-  quickActionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
+  sectionHeader: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#94a3b8',
+    marginBottom: 16,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  actionButton: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
+  actionCard: {
+    marginBottom: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  actionCardGradient: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  actionButtonText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '600',
-  },
-  logoutText: {
-    fontSize: 16,
-    color: '#e63946',
-    fontWeight: 'bold',
-    marginTop: 10,
-    textAlign: 'center',
-    padding: 10,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#e63946',
-    borderRadius: 8,
+    borderColor: '#334155',
+  },
+  actionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    borderWidth: 1,
+  },
+  actionTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#f1f5f9',
+    letterSpacing: 0.5,
   },
 });
 

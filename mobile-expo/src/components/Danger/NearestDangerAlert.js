@@ -1,121 +1,90 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 /**
  * NearestDangerAlert Component
- * Displays information about the nearest danger zone to help users avoid it
- * Only shows if it's a DIFFERENT area than where you currently are
+ * Dark Mode: Slate background with neon stroke.
  */
 const NearestDangerAlert = ({ nearestHotspot, currentZone, onViewDetails }) => {
-    // Don't show if no hotspot data
     if (!nearestHotspot) {
         return (
             <View style={styles.container}>
-                <View style={styles.safeCard}>
-                    <Text style={styles.safeIcon}>✓</Text>
-                    <Text style={styles.safeTitle}>No Danger Zones Nearby</Text>
-                    <Text style={styles.safeSubtitle}>You're in a safe area</Text>
-                </View>
+                <LinearGradient
+                    colors={['#1e293b', '#0f172a']}
+                    style={[styles.card, styles.safeCard]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                >
+                    <Ionicons name="shield-checkmark" size={28} color="#4ade80" />
+                    <View style={styles.textContainer}>
+                        <Text style={styles.cardTitle}>AREA SECURE</Text>
+                        <Text style={styles.cardSubtitle}>No immediate threats detected.</Text>
+                    </View>
+                </LinearGradient>
             </View>
         );
     }
 
-    // Don't show if the nearest danger zone is the SAME as your current location
-    // (This prevents showing "Uttara" twice with different risk scores)
     if (currentZone && nearestHotspot.name === currentZone.name && nearestHotspot.distance < 5000) {
-        return (
-            <View style={styles.container}>
-                <View style={styles.safeCard}>
-                    <Text style={styles.safeIcon}>ℹ️</Text>
-                    <Text style={styles.safeTitle}>You are in {currentZone.name}</Text>
-                    <Text style={styles.safeSubtitle}>Check the top bar for current risk level</Text>
-                </View>
-            </View>
-        );
+        return null;
     }
 
-    const { name, distance, riskLevel } = nearestHotspot;
-    const distanceKm = (distance / 1000).toFixed(2);
+    const { name, distance } = nearestHotspot;
+    const distanceText = distance < 1000 ? `${Math.round(distance)}m` : `${(distance / 1000).toFixed(1)}km`;
 
-    // Handle distance display
-    let distanceText;
-    if (distance < 100) {
-        distanceText = 'You are here';
-    } else if (distance < 1000) {
-        distanceText = `${Math.round(distance)}m away`;
-    } else {
-        distanceText = `${distanceKm}km away`;
-    }
+    let borderColor, iconName, iconColor, title, bgTint;
 
-    // Determine alert level based on distance and risk
-    let alertStyle, alertIcon, alertTitle;
-    if (distance < 100) {
-        // User is AT the danger zone
-        alertStyle = styles.criticalAlert;
-        alertIcon = '🚨';
-        alertTitle = 'YOU ARE IN A DANGER ZONE';
-    } else if (distance < 500) {
-        alertStyle = styles.criticalAlert;
-        alertIcon = '🚨';
-        alertTitle = 'DANGER ZONE NEARBY';
+    if (distance < 100 || distance < 500) {
+        borderColor = '#ef4444'; // Red
+        iconName = 'alert-circle';
+        iconColor = '#ef4444';
+        title = 'PROXIMITY WARNING';
+        bgTint = 'rgba(239, 68, 68, 0.1)';
     } else if (distance < 1000) {
-        alertStyle = styles.warningAlert;
-        alertIcon = '⚠️';
-        alertTitle = 'Warning: Danger Zone Ahead';
+        borderColor = '#f59e0b'; // Amber
+        iconName = 'warning';
+        iconColor = '#f59e0b';
+        title = 'CAUTION ADVISED';
+        bgTint = 'rgba(245, 158, 11, 0.1)';
     } else {
-        alertStyle = styles.infoAlert;
-        alertIcon = 'ℹ️';
-        alertTitle = 'Danger Zone in Area';
+        borderColor = '#3b82f6'; // Blue
+        iconName = 'information-circle';
+        iconColor = '#3b82f6';
+        title = 'SYSTEM NOTICE';
+        bgTint = 'rgba(59, 130, 246, 0.1)';
     }
 
     return (
         <View style={styles.container}>
             <TouchableOpacity
-                style={[styles.card, alertStyle]}
                 onPress={onViewDetails}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
             >
-                <View style={styles.header}>
-                    <Text style={styles.icon}>{alertIcon}</Text>
-                    <View style={styles.headerText}>
-                        <Text style={styles.title}>{alertTitle}</Text>
-                        <Text style={styles.subtitle}>Tap for details</Text>
-                    </View>
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.details}>
-                    <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Location:</Text>
-                        <Text style={styles.detailValue}>{name}</Text>
-                    </View>
-
-                    <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Distance:</Text>
-                        <Text style={styles.detailValue}>{distanceText}</Text>
-                    </View>
-
-                    <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Risk Level:</Text>
-                        <View style={styles.riskBadge}>
-                            <Text style={styles.riskBadgeText}>{riskLevel}/100</Text>
+                <LinearGradient
+                    colors={['#1e293b', '#0f172a']}
+                    style={[styles.card, { borderLeftColor: borderColor }]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                >
+                    <View style={styles.header}>
+                        <View style={[styles.iconBox, { backgroundColor: bgTint }]}>
+                            <Ionicons name={iconName} size={24} color={iconColor} />
                         </View>
+                        <View style={styles.headerText}>
+                            <Text style={[styles.title, { color: iconColor }]}>{title}</Text>
+                            <Text style={styles.subtitle}>
+                                {name} detected {distanceText} away.
+                            </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#475569" />
                     </View>
-                </View>
 
-                <View style={styles.recommendation}>
-                    <Text style={styles.recommendationIcon}>💡</Text>
-                    <Text style={styles.recommendationText}>
-                        {distance < 100
-                            ? 'Leave this area immediately and move to a safer location'
-                            : distance < 500
-                                ? 'Consider leaving this area immediately'
-                                : distance < 1000
-                                    ? 'Avoid moving towards this area'
-                                    : 'Be cautious if traveling in this direction'}
-                    </Text>
-                </View>
+                    <View style={styles.footer}>
+                        <Text style={[styles.footerText, { color: iconColor }]}>VIEW TACTICAL ANALYSIS</Text>
+                    </View>
+                </LinearGradient>
             </TouchableOpacity>
         </View>
     );
@@ -123,129 +92,72 @@ const NearestDangerAlert = ({ nearestHotspot, currentZone, onViewDetails }) => {
 
 const styles = StyleSheet.create({
     container: {
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        width: '100%',
+        paddingVertical: 8,
     },
     card: {
-        backgroundColor: '#fff',
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 16,
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        borderLeftWidth: 4,
-    },
-    criticalAlert: {
-        borderLeftColor: '#dc2626',
-        backgroundColor: '#fef2f2',
-    },
-    warningAlert: {
-        borderLeftColor: '#f59e0b',
-        backgroundColor: '#fffbeb',
-    },
-    infoAlert: {
-        borderLeftColor: '#3b82f6',
-        backgroundColor: '#eff6ff',
+        borderLeftWidth: 3,
+        borderWidth: 1,
+        borderColor: '#334155',
     },
     safeCard: {
-        backgroundColor: '#f0fdf4',
-        borderRadius: 16,
-        padding: 20,
+        borderLeftColor: '#4ade80',
+        flexDirection: 'row',
         alignItems: 'center',
-        borderLeftWidth: 4,
-        borderLeftColor: '#16a34a',
     },
-    safeIcon: {
-        fontSize: 48,
-        marginBottom: 8,
+    textContainer: {
+        marginLeft: 16,
     },
-    safeTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#16a34a',
-        marginBottom: 4,
-    },
-    safeSubtitle: {
+    cardTitle: {
         fontSize: 14,
-        color: '#15803d',
+        fontWeight: '800',
+        color: '#f0fdf4',
+        letterSpacing: 1,
+    },
+    cardSubtitle: {
+        fontSize: 12,
+        color: '#94a3b8',
+        marginTop: 2,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 12,
     },
-    icon: {
-        fontSize: 32,
-        marginRight: 12,
+    iconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
     },
     headerText: {
         flex: 1,
     },
     title: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#1f2937',
-        marginBottom: 2,
+        fontSize: 12,
+        fontWeight: '800',
+        letterSpacing: 1,
+        marginBottom: 4,
     },
     subtitle: {
-        fontSize: 12,
-        color: '#6b7280',
-    },
-    divider: {
-        height: 1,
-        backgroundColor: '#e5e7eb',
-        marginVertical: 12,
-    },
-    details: {
-        marginBottom: 12,
-    },
-    detailRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    detailLabel: {
-        fontSize: 14,
-        color: '#6b7280',
-        fontWeight: '500',
-    },
-    detailValue: {
-        fontSize: 14,
-        color: '#1f2937',
-        fontWeight: '600',
-    },
-    riskBadge: {
-        backgroundColor: '#dc2626',
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    riskBadgeText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    recommendation: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        padding: 12,
-        borderRadius: 8,
-        marginTop: 8,
-    },
-    recommendationIcon: {
-        fontSize: 16,
-        marginRight: 8,
-    },
-    recommendationText: {
-        flex: 1,
         fontSize: 13,
-        color: '#1e40af',
-        lineHeight: 18,
+        color: '#cbd5e1',
     },
+    footer: {
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#334155',
+    },
+    footerText: {
+        fontSize: 10,
+        fontWeight: '700',
+        textAlign: 'right',
+        letterSpacing: 1,
+    }
 });
 
 export default NearestDangerAlert;

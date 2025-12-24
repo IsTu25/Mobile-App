@@ -410,30 +410,79 @@ class DangerPredictionService {
     }
 
     /**
-     * Get safe route suggestion
+     * Analyze the safety of a full route path
+     * @param {Array<{latitude: number, longitude: number}>} routePath 
+     */
+    async analyzeRouteSafety(routePath) {
+        if (!routePath || routePath.length === 0) return null;
+
+        let totalRisk = 0;
+        let maxRisk = 0;
+        let riskPoints = [];
+        let hotspotsEncountered = new Set();
+        let safeScore = 100;
+
+        // Sample points along the route (every ~5th point to save perf)
+        const sampleStep = Math.max(1, Math.floor(routePath.length / 20));
+
+        for (let i = 0; i < routePath.length; i += sampleStep) {
+            const point = routePath[i];
+
+            // Calculate detailed risk for this point
+            // We use a lighter version here without time/day to be fast, or full if needed
+            // For accuracy, let's use the hotspot + history only
+            const hotspotRisk = this.calculateHotspotProximity(point.latitude, point.longitude);
+            const historicalRisk = this.calculateHistoricalCrimeDensity(point.latitude, point.longitude);
+
+            // Current point risk (0-100)
+            const pointRisk = Math.min(100, (hotspotRisk * 0.6) + (historicalRisk * 0.4));
+
+            totalRisk += pointRisk;
+            if (pointRisk > maxRisk) maxRisk = pointRisk;
+
+            // Identify hotspots touched
+            if (pointRisk > 40) {
+                const hotspot = this.getNearestHotspot(point.latitude, point.longitude);
+                if (hotspot && hotspot.distance < 1000) { // If within 1km of a hotspot
+                    hotspotsEncountered.add(hotspot.name);
+                }
+
+                riskPoints.push({
+                    latitude: point.latitude,
+                    longitude: point.longitude,
+                    risk: Math.round(pointRisk)
+                });
+            }
+        }
+
+        const stats = {
+            averageRisk: Math.round(totalRisk / Math.ceil(routePath.length / sampleStep)),
+            maxRisk: Math.round(maxRisk),
+            hotspots: Array.from(hotspotsEncountered),
+            riskPoints: riskPoints,
+            recommendation: ''
+        };
+
+        // SAFETY SCORE (Inverse of Risk) 0-100 (100 is safest)
+        stats.safetyScore = Math.max(0, 100 - stats.averageRisk);
+
+        if (stats.safetyScore > 80) stats.recommendation = 'Safe Route';
+        else if (stats.safetyScore > 50) stats.recommendation = 'Moderate Caution';
+        else stats.recommendation = 'High Risk - Avoid';
+
+        return stats;
+    }
+
+    /**
+     * Get safe route suggestion (Legacy - kept for backward compatibility)
      */
     async getSafeRoute(fromLat, fromLon, toLat, toLon) {
-        // Calculate risk along direct route
-        const directRouteRisk = await this.calculateRiskScore(
-            (fromLat + toLat) / 2,
-            (fromLon + toLon) / 2
-        );
-
-        // Find safest nearby area to route through
-        const safeAreas = this.crimeHotspots
-            .filter(h => h.riskLevel < 40)
-            .sort((a, b) => a.riskLevel - b.riskLevel);
-
+        // ... (Redirect to new logic or keep simple)
+        const directRisk = await this.calculateRiskScore((fromLat + toLat) / 2, (fromLon + toLon) / 2);
         return {
-            directRoute: {
-                risk: directRouteRisk.riskScore,
-                recommended: directRouteRisk.riskScore < 50
-            },
-            alternativeRoute: safeAreas.length > 0 ? {
-                viaArea: safeAreas[0].name,
-                risk: safeAreas[0].riskLevel,
-                coordinates: { lat: safeAreas[0].lat, lon: safeAreas[0].lon }
-            } : null
+            directRoute: { risk: directRisk.riskScore },
+            // This method is deprecated in favor of analyzeRouteSafety
+            deprecated: true
         };
     }
 }
