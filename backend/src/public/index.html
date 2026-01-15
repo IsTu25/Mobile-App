@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Tracking - Nirapotta</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+            background: #0f172a;
+        }
+
+        #info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(15, 23, 42, 0.9);
+            color: #fff;
+            padding: 15px;
+            border-radius: 12px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            border: 1px solid #334155;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .status-badge {
+            background: #10b981;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-badge.inactive {
+            background: #ef4444;
+        }
+
+        .user-name {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .last-updated {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .detail-row {
+            color: #cbd5e1;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <div id="info-panel">
+        <div class="header">
+            <span class="user-name" id="userName">Loading...</span>
+            <span class="status-badge" id="statusBadge">CONNECTING</span>
+        </div>
+        <div class="detail-row" id="speedRow">Speed: -- km/h</div>
+        <div class="last-updated" id="lastUpdated">Waiting for update...</div>
+        <a id="gmapsLink" href="#" target="_blank"
+            style="display: block; margin-top: 15px; text-align: center; background: #334155; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+            See on Google Maps
+        </a>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        // Get Session ID from URL path (e.g. /track/SESSION_ID)
+        const pathSegments = window.location.pathname.split('/');
+        const sessionId = pathSegments[pathSegments.length - 1]; // Assume last part is ID
+
+        // Initialize Map
+        const map = L.map('map').setView([23.8103, 90.4125], 13); // Default Dhaka
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        let marker = null;
+        let polyline = L.polyline([], { color: '#38bdf8', weight: 4 }).addTo(map);
+
+        // Custom Icon
+        const userIcon = L.divIcon({
+            className: 'custom-icon',
+            html: `<div style="background-color: #38bdf8; width: 15px; height: 15px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px #38bdf8;"></div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+
+        async function updateLocation() {
+            try {
+                const response = await fetch(`/api/tracking/api/${sessionId}`);
+                const json = await response.json();
+
+                if (!json.success || !json.data) return;
+
+                const session = json.data;
+                const { currentLocation, user, active, path, updatedAt } = session;
+
+                // Update UI
+                document.getElementById('userName').innerText = user.fullName || 'User';
+                const statusEl = document.getElementById('statusBadge');
+                statusEl.innerText = active ? 'LIVE' : 'ENDED';
+                statusEl.className = 'status-badge ' + (active ? '' : 'inactive');
+
+                if (currentLocation) {
+                    const lat = currentLocation.latitude;
+                    const lng = currentLocation.longitude;
+                    const speed = (currentLocation.speed * 3.6).toFixed(1); // m/s to km/h
+
+                    document.getElementById('speedRow').innerText = `Speed: ${speed} km/h`;
+                    document.getElementById('lastUpdated').innerText = `Last updated: ${new Date(currentLocation.timestamp).toLocaleTimeString()}`;
+
+                    // Update Google Maps Link
+                    document.getElementById('gmapsLink').href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+                    // Update Map Marker
+                    if (!marker) {
+                        marker = L.marker([lat, lng], { icon: userIcon }).addTo(map);
+                        map.setView([lat, lng], 16);
+                    } else {
+                        marker.setLatLng([lat, lng]);
+                        // Only pan if active
+                        if (active) map.panTo([lat, lng]);
+                    }
+
+                    // Update Path (History)
+                    const latLngs = path.map(p => [p.latitude, p.longitude]);
+                    polyline.setLatLngs(latLngs);
+                }
+
+                // If not active, stop polling quickly
+                if (!active) {
+                    clearInterval(pollInterval);
+                }
+
+            } catch (err) {
+                console.error("Poll Error:", err);
+            }
+        }
+
+        // Poll every 3 seconds
+        updateLocation();
+        const pollInterval = setInterval(updateLocation, 3000);
+
+    </script>
+</body>
+
+</html>

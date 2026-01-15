@@ -50,20 +50,40 @@ class EmergencyService {
           notifiedAt: new Date()
         });
 
-        // If station has API integration, send alert via API
-        // For now, just log
+        // If station has API integration, send alert via API (mocked log)
         console.log(`🚓 Alerted police station: ${station.name} (${Math.round(station.distance)}m away)`);
+
+        // NEW: Send SMS to Police Station if phone number exists
+        if (station.phone) {
+          const coordinatesStr = `${location.coordinates[1]},${location.coordinates[0]}`;
+          // Use trackingUrl if provided
+          const locationUrl = location.trackingUrl
+            ? location.trackingUrl
+            : `https://maps.google.com/?q=${location.coordinates[1]},${location.coordinates[0]}`;
+
+          await smsService.sendEmergencyAlert(
+            station.phone,
+            user.fullName,
+            locationUrl,
+            coordinatesStr
+          );
+        }
       }
 
       // Notify emergency contacts via SMS
       if (user.emergencyContacts && user.emergencyContacts.length > 0) {
-        const locationUrl = `https://maps.google.com/?q=${location.coordinates[1]},${location.coordinates[0]}`;
+        // Use trackingUrl if provided, otherwise fallback to static Google Maps link
+        const locationUrl = location.trackingUrl
+          ? location.trackingUrl
+          : `https://maps.google.com/?q=${location.coordinates[1]},${location.coordinates[0]}`;
 
         for (const contact of user.emergencyContacts) {
+          const coordinatesStr = `${location.coordinates[1]},${location.coordinates[0]}`;
           const smsResult = await smsService.sendEmergencyAlert(
             contact.phone,
             user.fullName,
-            locationUrl
+            locationUrl,
+            coordinatesStr
           );
 
           alert.notifiedContacts.push({

@@ -1,4 +1,26 @@
-import Voice from '@react-native-voice/voice';
+// import Voice from '@react-native-voice/voice';
+
+let Voice = null;
+
+try {
+    Voice = require('@react-native-voice/voice').default;
+} catch (e) {
+    console.warn("Voice module not loaded:", e);
+}
+
+// Fallback Mock if Voice is null (or NativeModule missing)
+if (!Voice) {
+    console.warn("Using Mock Voice for Expo Go");
+    Voice = {
+        onSpeechResults: null,
+        onSpeechError: null,
+        onSpeechEnd: null,
+        start: async () => console.log("[Mock] Voice.start"),
+        stop: async () => console.log("[Mock] Voice.stop"),
+        destroy: async () => console.log("[Mock] Voice.destroy"),
+        isAvailable: async () => false,
+    };
+}
 
 class VoiceTriggerService {
     constructor() {
@@ -8,9 +30,11 @@ class VoiceTriggerService {
         this.onError = null;
 
         // Bind events
-        Voice.onSpeechResults = this.onSpeechResults.bind(this);
-        Voice.onSpeechError = this.onSpeechError.bind(this);
-        Voice.onSpeechEnd = this.onSpeechEnd.bind(this);
+        if (Voice) {
+            Voice.onSpeechResults = this.onSpeechResults.bind(this);
+            Voice.onSpeechError = this.onSpeechError.bind(this);
+            Voice.onSpeechEnd = this.onSpeechEnd.bind(this);
+        }
     }
 
     setTriggerWord(word) {

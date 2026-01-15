@@ -52,6 +52,30 @@ const userSchema = new mongoose.Schema({
     type: String
   },
 
+  // Extended Profile
+  bloodGroup: {
+    type: String,
+    enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+  },
+
+  gender: {
+    type: String,
+    enum: ['Male', 'Female', 'Other']
+  },
+
+  dateOfBirth: {
+    type: Date
+  },
+
+  address: {
+    type: String
+  },
+
+  medicalCondition: {
+    type: String,
+    maxLength: 500
+  },
+
   // App Security (PIN/Password)
   appSecurity: {
     enabled: {

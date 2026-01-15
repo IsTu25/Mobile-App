@@ -18,6 +18,7 @@ import EmergencyContactsScreen from './src/screens/Emergency/EmergencyContactsSc
 import SOSVideoScreen from './src/screens/Emergency/SOSVideoScreen';
 import FaceRecognitionScreen from './src/screens/Emergency/FaceRecognitionScreen';
 import SafeRouteScreen from './src/screens/Home/SafeRouteScreen';
+import DashboardScreen from './src/screens/Dashboard/DashboardScreen';
 
 const Stack = createStackNavigator();
 
@@ -80,6 +81,11 @@ export default function App() {
           <Stack.Screen
             name="SafeRoute"
             component={SafeRouteScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Dashboard"
+            component={DashboardScreen}
             options={{ headerShown: false }}
           />
         </Stack.Navigator>

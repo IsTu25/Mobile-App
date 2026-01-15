@@ -48,9 +48,26 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/user', require('./routes/user.routes'));
 app.use('/api/emergency', emergencyRoutes);
 app.use('/api/recognition', require('./routes/recognition.routes'));
-app.use('/api/danger', require('./routes/danger-prediction.routes')); // NEW: Danger prediction AI
+app.use('/api/danger', require('./routes/danger-prediction.routes'));
+app.use('/track', require('./routes/tracking.routes')); // Mounts /track (Web View) AND /track/api (JSON) at base level for cleaner URLs if configured or as sub-route? 
+// Wait, my routes definitions are:
+// router.post('/start') -> /track/start
+// router.get('/api/:sessionId') -> /track/api/:sessionId
+// router.get('/:sessionId') -> /track/:sessionId (HTML)
+// So mounting at '/track' is correct but I also need '/api/tracking' for mobile app consistency? 
+// Let's keep it simple. Access HTML via /track/:id. Access API via /api/tracking/...
+// I will split the router or just use two mounts? 
+// Actually I defined the router to carry both. 
+// Let's use two mounts for the SAME router file to expose it at different prefixes for clarity?
+// Or just mount it at `/api/tracking` for API and `/track` for HTML?
+// My router definition mixes them. 
+// Let's mount at /api/tracking AND /track (Express allows this).
+const trackingRouter = require('./routes/tracking.routes');
+app.use('/api/tracking', trackingRouter); // For Mobile App API calls
+app.use('/track', trackingRouter); // For Public Web Link (HTML)
 
 // Welcome route
 app.get('/', (req, res) => {

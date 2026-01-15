@@ -15,14 +15,14 @@ class SMSService {
   async sendOTP(phoneNumber, otp) {
     try {
       const message = `Your Safety App verification code is: ${otp}. Valid for ${config.OTP_EXPIRY_MINUTES} minutes. Do not share this code.`;
-      
+
       if (twilioClient) {
         const result = await twilioClient.messages.create({
           body: message,
           from: config.TWILIO_PHONE_NUMBER,
           to: phoneNumber
         });
-        
+
         console.log(`✅ OTP SMS sent to ${phoneNumber} (SID: ${result.sid})`);
         return {
           success: true,
@@ -42,21 +42,24 @@ class SMSService {
       throw new Error('Failed to send SMS');
     }
   }
-  
+
   /**
    * Send emergency alert SMS
    */
-  async sendEmergencyAlert(phoneNumber, userName, locationUrl) {
+  async sendEmergencyAlert(phoneNumber, userName, locationUrl, coordinatesStr = "") {
     try {
-      const message = `🚨 EMERGENCY ALERT: ${userName} has triggered an SOS alert. Track their location: ${locationUrl}`;
-      
+      let message = `🚨 EMERGENCY ALERT: ${userName} has triggered an SOS alert. Follow live location here: ${locationUrl}`;
+      if (coordinatesStr) {
+        message += `\nLoc: ${coordinatesStr}`;
+      }
+
       if (twilioClient) {
         const result = await twilioClient.messages.create({
           body: message,
           from: config.TWILIO_PHONE_NUMBER,
           to: phoneNumber
         });
-        
+
         console.log(`✅ Emergency SMS sent to ${phoneNumber}`);
         return {
           success: true,

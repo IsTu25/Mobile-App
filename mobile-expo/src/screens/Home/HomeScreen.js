@@ -10,10 +10,12 @@ import {
   ScrollView,
   StatusBar,
   Animated,
-  Dimensions
+  Share,
+  Linking
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import * as Location from 'expo-location';
+import * as SMS from 'expo-sms';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -26,9 +28,11 @@ import { setActiveAlert } from '../../store/slices/emergencySlice';
 import { logout } from '../../store/slices/authSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../../api/authAPI';
+import apiClient from '../../api/apiClient';
 
 import VoiceTriggerService from '../../services/VoiceTriggerService';
 import GutFeelingService from '../../services/GutFeelingService';
+import TrackingService from '../../services/TrackingService';
 
 const HomeScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
@@ -38,6 +42,9 @@ const HomeScreen = ({ navigation }) => {
   const [gutFeelingScore, setGutFeelingScore] = useState(0); // 0-1
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [triggerPhrase, setTriggerPhrase] = useState('help');
+  const [isTracking, setIsTracking] = useState(false);
+  const [trackingUrl, setTrackingUrl] = useState(null);
+
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
   const { isSOSActive } = useSelector(state => state.emergency);
@@ -72,6 +79,12 @@ const HomeScreen = ({ navigation }) => {
         ]);
       }
     });
+
+    // 3. Check Tracking Status
+    (async () => {
+      const active = await TrackingService.isActive();
+      setIsTracking(active);
+    })();
 
     // Cleanup
     return () => {
@@ -206,26 +219,141 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  // --- NEW: Live Location Logic ---
+  const handleStartLiveLocation = async () => {
+    setLoading(true);
+    try {
+      const { trackingUrl: url } = await TrackingService.startSharing();
+      setTrackingUrl(url);
+      setIsTracking(true);
+
+      Alert.alert(
+        'Live Location Active',
+        'Your location is now being shared in real-time.',
+        [
+          { text: 'OK' },
+          { text: 'Notify Contacts (SMS)', onPress: () => notifyContacts(url) },
+          { text: 'Share Link (Manual)', onPress: () => shareTrackingLink(url) }
+        ]
+      );
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to start live location. Ensure backend is running.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const notifyContacts = async (url) => {
+    try {
+      if (!location) return;
+
+      // 1. Try Backend SMS (Twilio/Mock) first
+      const coordinates = `${location.latitude},${location.longitude}`;
+      await apiClient.post('/tracking/share-with-contacts', {
+        trackingUrl: url,
+        coordinates: coordinates
+      });
+      Alert.alert('Success', 'Live location sent to all emergency contacts via SMS (Cloud).');
+
+    } catch (e) {
+      console.log('Backend SMS failed, falling back to native SMS:', e.message);
+
+      // 2. Fallback: Use Device SMS (Free/Native)
+      try {
+        const isAvailable = await SMS.isAvailableAsync();
+        if (isAvailable && user.emergencyContacts?.length > 0) {
+          const phoneNumbers = user.emergencyContacts.map(c => c.phone);
+          const message = `🚨 SOS: I need help! Follow my live location here: ${url} \nLoc: ${location.latitude},${location.longitude}`;
+
+          await SMS.sendSMSAsync(phoneNumbers, message);
+        } else {
+          // Show original error if native SMS not possible
+          const errorMessage = e.response?.data?.message || 'Failed to send SMS via Cloud or Device.';
+          Alert.alert('Error', errorMessage);
+        }
+      } catch (nativeError) {
+        Alert.alert('Error', 'Failed to send SMS.');
+      }
+    }
+  };
+
+  const handleStopLiveLocation = async () => {
+    await TrackingService.stopSharing();
+    setIsTracking(false);
+    setTrackingUrl(null);
+    Alert.alert('Live Location', 'Sharing stopped.');
+  };
+
+  const shareTrackingLink = async (url) => {
+    if (!url) return;
+    try {
+      let message = `Follow my live location here: ${url}`;
+      if (location) {
+        message += `\nLoc: ${location.latitude},${location.longitude}`;
+      }
+      await Share.share({
+        message: message,
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const handleSOSTrigger = async () => {
     if (!location) {
       Alert.alert('System Alert', 'Acquiring GPS coordinates. Please wait.');
       return;
     }
-    triggerSOSAlert();
+
+    // 1. Start Tracking Automatically
+    let url = null;
+    try {
+      const result = await TrackingService.startSharing();
+      url = result.trackingUrl;
+      setTrackingUrl(url);
+      setIsTracking(true);
+    } catch (e) {
+      console.log('Failed to auto-start tracking during SOS:', e);
+    }
+
+    triggerSOSAlert(url);
   };
 
-  const triggerSOSAlert = async () => {
+  const triggerSOSAlert = async (trackUrl) => {
     setLoading(true);
     try {
       const result = await emergencyAPI.triggerSOS(
         {
           type: 'Point',
           coordinates: [location.longitude, location.latitude],
+          trackingUrl: trackUrl
         },
         'button'
       );
       navigation.navigate('SOSVideo');
       dispatch(setActiveAlert(result.data.alert));
+
+      // 3. Open WhatsApp for "Nearest Police"
+      if (trackUrl) {
+        setTimeout(() => {
+          Alert.alert(
+            'SOS Broadcasted',
+            'Share your live location via WhatsApp?',
+            [
+              { text: 'No', style: 'cancel' },
+              {
+                text: 'Open WhatsApp',
+                onPress: () => {
+                  const locStr = location ? ` Loc: ${location.latitude},${location.longitude}` : '';
+                  Linking.openURL(`whatsapp://send?text=HELP! I need help. Follow my live location here: ${trackUrl}${locStr}`);
+                }
+              }
+            ]
+          );
+        }, 1000);
+      }
+
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to trigger SOS';
       Alert.alert('Connection Error', message);
@@ -318,7 +446,14 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.headerSection}>
             <View>
               <Text style={styles.greetingText}>SYSTEM ONLINE</Text>
-              <Text style={styles.userText}>Welcome, {user?.fullName?.split(' ')[0]}</Text>
+
+              <TouchableOpacity onPress={() => navigation.navigate('Dashboard')} activeOpacity={0.7}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={styles.userText}>{user?.fullName?.split(' ')[0]}'s Dashboard</Text>
+                  <Ionicons name="chevron-forward-circle" size={24} color="#38bdf8" />
+                </View>
+              </TouchableOpacity>
+
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                 <Ionicons
                   name="pulse"
@@ -425,6 +560,36 @@ const HomeScreen = ({ navigation }) => {
           {/* Quick Actions Grid */}
           <View style={styles.actionsContainer}>
             <Text style={styles.sectionHeader}>QUICK ACCESS</Text>
+
+            {/* NEW: Live Location Card */}
+            {isTracking ? (
+              <TouchableOpacity style={[styles.actionCard, { borderColor: '#ef4444', borderWidth: 1 }]} onPress={handleStopLiveLocation}>
+                <LinearGradient
+                  colors={['#450a0a', '#7f1d1d']}
+                  style={styles.actionCardGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={[styles.actionIconContainer, { borderColor: '#fff', backgroundColor: '#ef4444' }]}>
+                    <Ionicons name="stop" size={22} color="#fff" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.actionTitle}>Stop Sharing Location</Text>
+                    <Text style={{ color: '#fca5a5', fontSize: 10 }}>Status: LIVE</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => shareTrackingLink(trackingUrl)}>
+                    <Ionicons name="share-social" size={24} color="#fff" />
+                  </TouchableOpacity>
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <QuickActionCard
+                title="Share Live Location"
+                icon="navigate-circle"
+                color="#f472b6"
+                onPress={handleStartLiveLocation}
+              />
+            )}
 
             <QuickActionCard
               title="Trusted Contacts"

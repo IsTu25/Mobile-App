@@ -22,13 +22,19 @@ const storage = multer.diskStorage({
 
 // File filter
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|gif|mp4|mov|avi/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
-  
-  if (extname && mimetype) {
+  // Check extension
+  const allowedExtensions = /jpeg|jpg|png|gif|mp4|mov|avi|mkv/;
+  const hasValidExtension = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+
+  // Check mimetype (Allow any image or video type, plus octet-stream for safety)
+  const hasValidMimeType = file.mimetype.startsWith('image/') ||
+    file.mimetype.startsWith('video/') ||
+    file.mimetype === 'application/octet-stream';
+
+  if (hasValidExtension && hasValidMimeType) {
     cb(null, true);
   } else {
+    console.log(`[Upload] Rejected file: ${file.originalname} (${file.mimetype})`);
     cb(new Error('Only image and video files are allowed'));
   }
 };

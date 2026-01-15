@@ -252,6 +252,14 @@ const SafeRouteScreen = ({ navigation }) => {
                     </MapView>
                 )}
 
+                {/* Back Button */}
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => navigation.goBack()}
+                >
+                    <Ionicons name="arrow-back" size={24} color="#fff" />
+                </TouchableOpacity>
+
                 {/* Search Panel (Floating) */}
                 <View style={styles.searchPanel}>
                     {/* From Field */}
@@ -370,9 +378,28 @@ const styles = StyleSheet.create({
         width: width,
         height: height,
     },
+    backButton: {
+        position: 'absolute',
+        top: 20, // Adjusted relative to map container, inside SafeAreaView it might need more padding if not handled, but SafeAreaView handles it.
+        left: 20,
+        width: 44,
+        height: 44,
+        backgroundColor: '#1e293b',
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+        borderWidth: 1,
+        borderColor: '#334155',
+        zIndex: 50,
+    },
     searchPanel: {
         position: 'absolute',
-        top: 50,
+        top: 80, // Moved down to make space for back button (was 50)
         left: 20,
         right: 20,
         backgroundColor: '#1e293b',
@@ -385,6 +412,7 @@ const styles = StyleSheet.create({
         elevation: 8,
         borderWidth: 1,
         borderColor: '#334155',
+        zIndex: 40,
     },
     inputRow: {
         flexDirection: 'row',

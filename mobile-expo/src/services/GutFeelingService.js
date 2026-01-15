@@ -4,7 +4,7 @@ import axios from 'axios';
 // Configuration
 const SAMPLE_RATE = 20; // ms (approx 50Hz)
 const WINDOW_SIZE = 128; // samples needed for 1 inference
-const API_URL = 'http://192.168.0.104:5001/predict'; // Python AI Server
+const API_URL = 'http://192.168.0.117:5001/predict'; // Python AI Server
 
 class GutFeelingService {
     constructor() {
