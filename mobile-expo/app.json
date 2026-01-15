@@ -53,7 +53,8 @@
           "microphonePermission": "Allow Nirapotta to listen for SOS trigger words.",
           "speechRecognitionPermission": "Allow Nirapotta to recognize your speech for SOS triggers."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

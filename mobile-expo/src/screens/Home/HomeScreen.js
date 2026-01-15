@@ -613,6 +613,20 @@ const HomeScreen = ({ navigation }) => {
             />
 
             <QuickActionCard
+              title="Report Crime"
+              icon="alert-circle"
+              color="#f97316"
+              onPress={() => navigation.navigate('CrimeReport')}
+            />
+
+            <QuickActionCard
+              title="My Reports"
+              icon="document-text"
+              color="#8b5cf6"
+              onPress={() => navigation.navigate('MyReports')}
+            />
+
+            <QuickActionCard
               title="Terminate Session"
               icon="power"
               color="#f87171"

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const csv = require('csv-parser');
+const CrimeReport = require('../models/CrimeReport');
 
 /**
  * Danger Prediction Service
@@ -10,6 +11,7 @@ const csv = require('csv-parser');
 class DangerPredictionService {
     constructor() {
         this.crimeData = [];
+        this.userReportedCrimes = [];
         this.datasetLoaded = false;
         this.datasetPath = path.join(__dirname, '../../dataset/bangladesh_crime_data.csv');
 
@@ -100,6 +102,50 @@ class DangerPredictionService {
     }
 
     /**
+     * Load user-reported crimes from database
+     */
+    async loadUserReportedCrimes() {
+        try {
+            const reports = await CrimeReport.find({ status: { $in: ['pending', 'reviewed'] } })
+                .select('category location incidentDate createdAt');
+
+            this.userReportedCrimes = reports.map(report => ({
+                crimeType: report.category,
+                latitude: report.location.coordinates[1],
+                longitude: report.location.coordinates[0],
+                date: report.incidentDate,
+                severity: this.getCategorySeverity(report.category),
+                source: 'user_reported'
+            }));
+
+            if (this.userReportedCrimes.length > 0) {
+                console.log(`📱 Loaded ${this.userReportedCrimes.length} user-reported crimes`);
+            }
+        } catch (error) {
+            console.error('Error loading user-reported crimes:', error);
+            this.userReportedCrimes = [];
+        }
+    }
+
+    /**
+     * Get severity score for crime category
+     */
+    getCategorySeverity(category) {
+        const severityMap = {
+            'Theft/Robbery': 10,
+            'Assault': 9,
+            'Domestic Violence': 9,
+            'Harassment': 7,
+            'Vandalism': 4,
+            'Drug Activity': 8,
+            'Traffic Violation': 3,
+            'Fraud/Scam': 6,
+            'Other': 5
+        };
+        return severityMap[category] || 5;
+    }
+
+    /**
      * Calculate risk score for a location
      * Returns 0-100 score
      */
@@ -108,6 +154,9 @@ class DangerPredictionService {
         if (!this.datasetLoaded) {
             await this.loadCrimeDataset();
         }
+
+        // Load fresh user-reported crimes
+        await this.loadUserReportedCrimes();
 
         const hour = currentTime.getHours();
         const dayOfWeek = currentTime.toLocaleDateString('en-US', { weekday: 'long' });
@@ -207,13 +256,16 @@ class DangerPredictionService {
      * Calculate risk based on historical crime data
      */
     calculateHistoricalCrimeDensity(lat, lon) {
-        if (this.crimeData.length === 0) {
+        // Combine CSV dataset with user-reported crimes
+        const allCrimes = [...this.crimeData, ...this.userReportedCrimes];
+
+        if (allCrimes.length === 0) {
             return 50; // Default medium risk if no data
         }
 
         // Count crimes within 1km radius
         const radius = 1; // km
-        const nearbyCrimes = this.crimeData.filter(crime => {
+        const nearbyCrimes = allCrimes.filter(crime => {
             const distance = this.calculateDistance(lat, lon, crime.latitude, crime.longitude);
             return distance <= radius;
         });
@@ -225,7 +277,7 @@ class DangerPredictionService {
         // Calculate severity-weighted crime count
         let totalSeverity = 0;
         nearbyCrimes.forEach(crime => {
-            const severityScore = this.crimeSeverity[crime.crimeType] || 5;
+            const severityScore = crime.severity || this.crimeSeverity[crime.crimeType] || 5;
             totalSeverity += severityScore;
         });
 
