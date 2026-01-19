@@ -51,6 +51,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/emergency', emergencyRoutes);
 app.use('/api/recognition', require('./routes/recognition.routes'));
 app.use('/api/danger', require('./routes/danger-prediction.routes')); // NEW: Danger prediction AI
+app.use('/api/police', require('./routes/policeRoutes')); // NEW: Police Station Finder
 
 // Welcome route
 app.get('/', (req, res) => {

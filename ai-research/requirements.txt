@@ -1,4 +1,5 @@
 tensorflow
+tensorflow-hub
 pandas
 numpy
 scikit-learn
@@ -6,3 +7,6 @@ matplotlib
 requests
 flask
 flask-cors
+soundfile
+scipy
+pydub

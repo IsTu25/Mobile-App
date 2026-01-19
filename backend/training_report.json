@@ -1,5 +1,5 @@
 {
-  "trainingDate": "2025-12-22T21:44:35.509Z",
+  "trainingDate": "2026-01-14T20:54:17.551Z",
   "dataset": {
     "file": "bangladesh_crime_data_full.csv",
     "records": 1105,
@@ -7,7 +7,7 @@
     "policeUnits": 17,
     "crimeCategories": 7
   },
-  "trainingTime": "0.03s",
+  "trainingTime": "0.02s",
   "learnedPatterns": {
     "highestRiskUnit": "Dhaka Range",
     "lowestRiskUnit": "Ralway Range",

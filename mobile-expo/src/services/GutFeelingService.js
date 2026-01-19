@@ -4,7 +4,7 @@ import axios from 'axios';
 // Configuration
 const SAMPLE_RATE = 20; // ms (approx 50Hz)
 const WINDOW_SIZE = 128; // samples needed for 1 inference
-const API_URL = 'http://192.168.0.104:5001/predict'; // Python AI Server
+const API_URL = 'http://192.168.0.190:5001/predict'; // Python AI Server
 
 class GutFeelingService {
     constructor() {
@@ -78,13 +78,13 @@ class GutFeelingService {
 
     async analyzeBuffer(buffer) {
         try {
-            console.log("[GutFeeling] Sending data for inference...");
+            // console.log("[GutFeeling] Sending data for inference...");
             const response = await axios.post(API_URL, {
                 sensor_data: buffer
             });
 
             const { risk_score, status } = response.data;
-            console.log(`[GutFeeling] AI Result: ${status} (${risk_score.toFixed(4)})`);
+            // console.log(`[GutFeeling] AI Result: ${status} (${risk_score.toFixed(4)})`);
 
             if (this.onRiskUpdate) {
                 this.onRiskUpdate(risk_score);

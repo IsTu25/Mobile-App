@@ -6,7 +6,7 @@ const axios = require('axios');
  * Example: node test-interactive.js 23.8754 90.3965
  */
 
-const BASE_URL = 'http://192.168.0.104:3000';
+const BASE_URL = 'http://172.20.10.2:3000';
 
 async function testLocation(lat, lon) {
     console.log('\n🧪 Testing Danger Prediction API\n');

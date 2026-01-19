@@ -1,4 +1,16 @@
-import Voice from '@react-native-voice/voice';
+// import Voice from '@react-native-voice/voice';
+
+// MOCK VOICE FOR EXPO GO (Real Native Module doesn't work in Go)
+// Use 'npx expo run:android' to use the real one.
+const Voice = {
+    onSpeechResults: null,
+    onSpeechError: null,
+    onSpeechEnd: null,
+    start: async () => { console.warn('[VoiceTrigger] Mock Start (Native Module unavailable in Expo Go)'); },
+    stop: async () => { },
+    destroy: async () => { },
+    isAvailable: () => false
+};
 
 class VoiceTriggerService {
     constructor() {
@@ -8,9 +20,9 @@ class VoiceTriggerService {
         this.onError = null;
 
         // Bind events
-        Voice.onSpeechResults = this.onSpeechResults.bind(this);
-        Voice.onSpeechError = this.onSpeechError.bind(this);
-        Voice.onSpeechEnd = this.onSpeechEnd.bind(this);
+        // Voice.onSpeechResults = this.onSpeechResults.bind(this);
+        // Voice.onSpeechError = this.onSpeechError.bind(this);
+        // Voice.onSpeechEnd = this.onSpeechEnd.bind(this);
     }
 
     setTriggerWord(word) {
@@ -29,7 +41,7 @@ class VoiceTriggerService {
         try {
             console.log('[VoiceTrigger] Starting listener...');
             // Check if native module is linked
-            if (!Voice || !Voice.start) {
+            if (!Voice || !Voice.start || Voice.isAvailable && !Voice.isAvailable()) {
                 console.warn('[VoiceTrigger] Native Module missing. Are you using Expo Go? Use a Development Build.');
                 if (this.onError) this.onError(new Error("Voice module missing. Use 'npx expo run:android' or 'npx expo run:ios' to test this feature."));
                 return;
