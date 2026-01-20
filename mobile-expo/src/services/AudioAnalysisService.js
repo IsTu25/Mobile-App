@@ -7,7 +7,7 @@ class AudioAnalysisService {
         this.recording = null;
         this.isMonitoring = false;
         this.onDangerDetected = null;
-        this.apiUrl = 'http://192.168.0.190:5001/analyze-audio';
+        this.apiUrl = 'http://192.168.0.148:5001/analyze-audio';
         this.recordingInterval = null;
         this.dangerThreshold = 0.75; // Trigger SOS if danger confidence > 75%
     }
