@@ -277,7 +277,7 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-<<<<<<< HEAD
+
   // --- NEW: Live Location Logic ---
   const handleStartLiveLocation = async () => {
     setLoading(true);
