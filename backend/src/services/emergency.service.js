@@ -330,7 +330,7 @@ class EmergencyService {
     let subject = `🚨 URGENT: SOS Video Evidence from ${user.fullName}`;
 
     // Generate Video Link (Assuming server IP for local dev - update this IP to your machine's IP)
-    const videoLink = `http://${config.SERVER_URL || '192.168.0.148:3000'}/uploads/${file.filename}`;
+    const videoLink = `http://${config.SERVER_URL || '172.20.10.2:3000'}/uploads/${file.filename}`;
 
     let text = `
 User: ${user.fullName}

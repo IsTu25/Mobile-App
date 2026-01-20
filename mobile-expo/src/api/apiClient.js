@@ -4,9 +4,9 @@ import { Platform } from 'react-native';
 
 // Backend Configuration
 const BASE_URL = Platform.select({
-  ios: 'http://192.168.0.148:3000/api',
-  android: 'http://192.168.0.148:3000/api',
-  default: 'http://192.168.0.148:3000/api',
+  ios: 'http://172.20.10.2:3000/api',
+  android: 'http://172.20.10.2:3000/api',
+  default: 'http://172.20.10.2:3000/api',
 });
 
 // Debug: Log the BASE_URL being used
