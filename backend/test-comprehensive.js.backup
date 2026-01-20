@@ -5,7 +5,7 @@ const axios = require('axios');
  * Tests different locations across Bangladesh
  */
 
-const BASE_URL = 'http://192.168.0.104:3000';
+const BASE_URL = 'http://172.20.10.2:3000';
 
 // Test locations across Bangladesh
 const testLocations = [

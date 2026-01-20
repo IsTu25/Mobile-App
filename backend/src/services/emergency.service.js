@@ -330,7 +330,7 @@ class EmergencyService {
     let subject = `🚨 URGENT: SOS Video Evidence from ${user.fullName}`;
 
     // Generate Video Link (Assuming server IP for local dev - update this IP to your machine's IP)
-    const videoLink = `http://${config.SERVER_URL || '172.20.10.2:3000'}/uploads/${file.filename}`;
+    const videoLink = `http://${config.SERVER_URL || '192.168.0.148:3000'}/uploads/${file.filename}`;
 
     let text = `
 User: ${user.fullName}
@@ -347,23 +347,63 @@ ${videoLink}
 
     // Check file size using fs
     const fs = require('fs');
+    const path = require('path');
+    const ffmpeg = require('fluent-ffmpeg');
+
+    let attachmentPath = file.path;
+    let attachmentFilename = 'evidence.mp4';
+    let cleanupCompressed = false;
+
     try {
       const stats = fs.statSync(file.path);
       const fileSizeInBytes = stats.size;
-      // Limit attachment to 25MB (approx 25 * 1024 * 1024 bytes)
-      const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+      // Absolute max safe size for Gmail attachment (Base64 overhead): ~18MB
+      const MAX_SAFE_SIZE = 18 * 1024 * 1024;
 
-      if (fileSizeInBytes < MAX_ATTACHMENT_SIZE) {
+      if (fileSizeInBytes > MAX_SAFE_SIZE) {
+        console.log(`⚠️ Video is too large (${(fileSizeInBytes / 1024 / 1024).toFixed(2)}MB) for direct attachment.`);
+        console.log('🔄 Attempting to compress video...');
+
+        const compressedPath = path.join(path.dirname(file.path), `compressed_${file.filename}.mp4`);
+
+        await new Promise((resolve, reject) => {
+          ffmpeg(file.path)
+            .outputOptions([
+              '-vcodec libx264',
+              '-crf 28',         // Compression factor (higher = smaller file)
+              '-preset ultrafast',
+              '-vf scale=-2:480' // Downscale to 480p
+            ])
+            .save(compressedPath)
+            .on('end', () => resolve())
+            .on('error', (err) => reject(err));
+        });
+
+        // Verify compressed size
+        const compressedStats = fs.statSync(compressedPath);
+        if (compressedStats.size < MAX_SAFE_SIZE) {
+          console.log(`✅ Compression successful! New size: ${(compressedStats.size / 1024 / 1024).toFixed(2)}MB`);
+          attachmentPath = compressedPath;
+          cleanupCompressed = true;
+          text += `\n(Note: Video was automatically compressed to fit email limits. High-quality version available via link.)\n`;
+        } else {
+          console.log('⚠️ Compressed video still too large. Falling back to link.');
+          text += `\n(Video is too large to attach. Please use the link above to view)\n`;
+          // cleanup immediately if useless
+          fs.unlinkSync(compressedPath);
+          attachmentPath = null;
+        }
+      }
+
+      if (attachmentPath) {
         attachments.push({
-          filename: 'evidence.mp4',
-          path: file.path
+          filename: attachmentFilename,
+          path: attachmentPath
         });
         text += `\n(Video file is attached below)\n`;
-      } else {
-        text += `\n(Video file is too large to attach. Please use the link above to view/download)\n`;
       }
     } catch (err) {
-      console.error('Error checking file size:', err);
+      console.error('Error handling video attachment:', err);
     }
 
     if (recognitionResult && recognitionResult.matches && recognitionResult.matches.length > 0) {
@@ -430,6 +470,14 @@ CONFIDENCE: ${(match.confidence * 100).toFixed(1)}%
       if (recognitionResult?.matches?.length > 0) console.log(`   (Included ${recognitionResult.matches.length} recognition matches)`);
     } else {
       console.log('⚠️ Email credentials missing, skipping actual send');
+    }
+
+    // 5. Send Video Link via WhatsApp
+    try {
+      const waMessage = `🚨 SOS VIDEO EVIDENCE\nUser: ${user.fullName}\nPhone: ${user.phoneNumber}\nLocation: ${locationUrl}\n\nWatch Video:\n${videoLink}`;
+      await smsService.sendWhatsAppMessage(targetStation.phone, waMessage);
+    } catch (waError) {
+      console.error('Failed to send WhatsApp:', waError);
     }
 
     console.log('🏁 Video evidence processing complete');

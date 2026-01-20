@@ -9,13 +9,14 @@ try {
 }
 
 // Fallback Mock if Voice is null (or NativeModule missing)
+// MOCK VOICE FOR EXPO GO (Real Native Module doesn't work in Go)
 if (!Voice) {
     console.warn("Using Mock Voice for Expo Go");
     Voice = {
         onSpeechResults: null,
         onSpeechError: null,
         onSpeechEnd: null,
-        start: async () => console.log("[Mock] Voice.start"),
+        start: async () => console.warn('[VoiceTrigger] Mock Start (Native Module unavailable in Expo Go)'),
         stop: async () => console.log("[Mock] Voice.stop"),
         destroy: async () => console.log("[Mock] Voice.destroy"),
         isAvailable: async () => false,
@@ -53,7 +54,7 @@ class VoiceTriggerService {
         try {
             console.log('[VoiceTrigger] Starting listener...');
             // Check if native module is linked
-            if (!Voice || !Voice.start) {
+            if (!Voice || !Voice.start || Voice.isAvailable && !Voice.isAvailable()) {
                 console.warn('[VoiceTrigger] Native Module missing. Are you using Expo Go? Use a Development Build.');
                 if (this.onError) this.onError(new Error("Voice module missing. Use 'npx expo run:android' or 'npx expo run:ios' to test this feature."));
                 return;

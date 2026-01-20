@@ -33,6 +33,9 @@ import apiClient from '../../api/apiClient';
 import VoiceTriggerService from '../../services/VoiceTriggerService';
 import GutFeelingService from '../../services/GutFeelingService';
 import TrackingService from '../../services/TrackingService';
+import AudioAnalysisService from '../../services/AudioAnalysisService';
+import PoliceStationService from '../../services/PoliceStationService';
+import NearestPoliceStationCard from '../../components/Police/NearestPoliceStationCard';
 
 const HomeScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
@@ -40,7 +43,10 @@ const HomeScreen = ({ navigation }) => {
   const [dangerLoading, setDangerLoading] = useState(false);
   const [riskData, setRiskData] = useState(null);
   const [gutFeelingScore, setGutFeelingScore] = useState(0); // 0-1
+  const [policeStation, setPoliceStation] = useState(null);
+  const [policeLoading, setPoliceLoading] = useState(false);
   const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [isAudioProtectionActive, setIsAudioProtectionActive] = useState(false);
   const [triggerPhrase, setTriggerPhrase] = useState('help');
   const [isTracking, setIsTracking] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState(null);
@@ -90,6 +96,7 @@ const HomeScreen = ({ navigation }) => {
     return () => {
       VoiceTriggerService.stopListening();
       GutFeelingService.stopMonitoring();
+      AudioAnalysisService.stopMonitoring();
     };
   }, [triggerPhrase, location]);
 
@@ -142,6 +149,56 @@ const HomeScreen = ({ navigation }) => {
     );
   };
 
+  const toggleAudioProtection = async () => {
+    if (isAudioProtectionActive) {
+      await AudioAnalysisService.stopMonitoring();
+      setIsAudioProtectionActive(false);
+      Alert.alert('Audio Protection', 'Deactivated.');
+    } else {
+      Alert.alert(
+        'Activate Audio Protection?',
+        'System will continuously analyze background audio for danger sounds (screams, gunshots, etc.).\n\nNote: May consume battery.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Activate',
+            onPress: async () => {
+              const result = await AudioAnalysisService.startMonitoring((dangerEvent) => {
+                // Danger detected callback
+                console.log('[HomeScreen] Danger Event:', dangerEvent);
+
+                // Automatic SOS if confidence is high (>= 80%)
+                if (dangerEvent.confidence >= 0.8) {
+                  Alert.alert(
+                    '⚠️ CRITICAL DANGER DETECTED',
+                    `Detected: ${dangerEvent.soundClass} (${(dangerEvent.confidence * 100).toFixed(1)}%)\nTriggering SOS Automatically...`
+                  );
+                  handleSOSTrigger();
+                } else {
+                  // Ask user for lower confidence detections
+                  Alert.alert(
+                    '⚠️ DANGER SOUND DETECTED',
+                    `Detected: ${dangerEvent.soundClass}\nConfidence: ${(dangerEvent.confidence * 100).toFixed(1)}%\n\nTrigger SOS?`,
+                    [
+                      { text: 'False Alarm', style: 'cancel' },
+                      { text: 'SOS', style: 'destructive', onPress: () => handleSOSTrigger() }
+                    ]
+                  );
+                }
+              });
+
+              if (result.success) {
+                setIsAudioProtectionActive(true);
+              } else {
+                Alert.alert('Error', result.error || 'Failed to start audio monitoring');
+              }
+            }
+          }
+        ]
+      );
+    }
+  };
+
   // Fetch location and danger prediction
   useEffect(() => {
     (async () => {
@@ -160,6 +217,7 @@ const HomeScreen = ({ navigation }) => {
 
       // Fetch danger prediction for current location
       fetchDangerPrediction(currentLocation.latitude, currentLocation.longitude);
+      fetchNearestPoliceStation(currentLocation.latitude, currentLocation.longitude);
     })();
 
     // Breathing pulse animation for button
@@ -219,6 +277,7 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+<<<<<<< HEAD
   // --- NEW: Live Location Logic ---
   const handleStartLiveLocation = async () => {
     setLoading(true);
@@ -244,40 +303,6 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  const notifyContacts = async (url) => {
-    try {
-      if (!location) return;
-
-      // 1. Try Backend SMS (Twilio/Mock) first
-      const coordinates = `${location.latitude},${location.longitude}`;
-      await apiClient.post('/tracking/share-with-contacts', {
-        trackingUrl: url,
-        coordinates: coordinates
-      });
-      Alert.alert('Success', 'Live location sent to all emergency contacts via SMS (Cloud).');
-
-    } catch (e) {
-      console.log('Backend SMS failed, falling back to native SMS:', e.message);
-
-      // 2. Fallback: Use Device SMS (Free/Native)
-      try {
-        const isAvailable = await SMS.isAvailableAsync();
-        if (isAvailable && user.emergencyContacts?.length > 0) {
-          const phoneNumbers = user.emergencyContacts.map(c => c.phone);
-          const message = `🚨 SOS: I need help! Follow my live location here: ${url} \nLoc: ${location.latitude},${location.longitude}`;
-
-          await SMS.sendSMSAsync(phoneNumbers, message);
-        } else {
-          // Show original error if native SMS not possible
-          const errorMessage = e.response?.data?.message || 'Failed to send SMS via Cloud or Device.';
-          Alert.alert('Error', errorMessage);
-        }
-      } catch (nativeError) {
-        Alert.alert('Error', 'Failed to send SMS.');
-      }
-    }
-  };
-
   const handleStopLiveLocation = async () => {
     await TrackingService.stopSharing();
     setIsTracking(false);
@@ -297,6 +322,18 @@ const HomeScreen = ({ navigation }) => {
       });
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const fetchNearestPoliceStation = async (latitude, longitude) => {
+    setPoliceLoading(true);
+    try {
+      const station = await PoliceStationService.getNearestStation(latitude, longitude);
+      setPoliceStation(station);
+    } catch (error) {
+      console.log('Failed to fetch police station');
+    } finally {
+      setPoliceLoading(false);
     }
   };
 
@@ -491,6 +528,19 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
+          {/* Audio Protection Control */}
+          <View style={styles.voiceControlContainer}>
+            <TouchableOpacity
+              style={[styles.voiceBtn, isAudioProtectionActive ? styles.voiceBtnActive : styles.voiceBtnInactive]}
+              onPress={toggleAudioProtection}
+            >
+              <Ionicons name={isAudioProtectionActive ? "volume-high" : "volume-mute"} size={20} color="#fff" />
+              <Text style={styles.voiceBtnText}>
+                {isAudioProtectionActive ? "AUDIO PROTECTION ON" : "AUDIO PROTECTION OFF"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Danger Status Bar */}
           <View style={styles.statusBarContainer}>
             <DangerStatusBar
@@ -508,6 +558,13 @@ const HomeScreen = ({ navigation }) => {
               currentZone={riskData?.location?.currentZone}
               onViewDetails={handleViewDangerDetails}
             />
+            {/* Nearest Police Station */}
+            <View style={{ marginTop: 20 }}>
+              <NearestPoliceStationCard
+                station={policeStation}
+                loading={policeLoading}
+              />
+            </View>
           </View>
 
           {/* SOS Section - Radar Style */}

@@ -151,6 +151,7 @@ class RecognitionService {
     }
 
     async processVideo(videoPath) {
+        console.log(`🎥 Starting video processing for: ${videoPath}`);
         if (!this.modelsLoaded) await this.loadModels();
         if (this.labeledDescriptors.length === 0) await this.loadDataset();
 
@@ -163,17 +164,25 @@ class RecognitionService {
             : null;
 
         return new Promise((resolve, reject) => {
+            console.log('🎞️ Spawning FFmpeg to extract frames...');
             ffmpeg(videoPath)
+                .on('start', (commandLine) => {
+                    console.log('Spawned Ffmpeg with command: ' + commandLine);
+                })
                 .on('end', async () => {
+                    console.log('✅ FFmpeg extraction finished. Analyzing frames...');
                     try {
                         const result = await this.analyzeFrames(tempDir, faceMatcher);
                         fs.rm(tempDir, { recursive: true, force: true }, () => { });
+                        console.log('✅ Frame analysis complete');
                         resolve(result);
                     } catch (err) {
+                        console.error('❌ Error analyzing frames:', err);
                         reject(err);
                     }
                 })
                 .on('error', (err) => {
+                    console.error('❌ FFmpeg Logged Error:', err);
                     reject(err);
                 })
                 .screenshots({
