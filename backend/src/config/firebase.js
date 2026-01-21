@@ -5,19 +5,34 @@ let firebaseApp = null;
 
 const initializeFirebase = () => {
   try {
-    // Check if Firebase credentials are provided
-    if (!config.FIREBASE_PROJECT_ID || !config.FIREBASE_PRIVATE_KEY || !config.FIREBASE_CLIENT_EMAIL) {
-      console.log('⚠️  Firebase credentials not provided. Running in mock mode.');
-      return null;
+    let credential;
+
+    // Option 1: Render/Cloud Deployment (Single JSON Environment Variable)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      try {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        credential = admin.credential.cert(serviceAccount);
+      } catch (e) {
+        console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:', e.message);
+      }
+    }
+
+    // Option 2: Local Development (Separate Variables from .env)
+    if (!credential) {
+      if (!config.FIREBASE_PROJECT_ID || !config.FIREBASE_PRIVATE_KEY || !config.FIREBASE_CLIENT_EMAIL) {
+        console.log('⚠️  Firebase credentials not provided. Running in mock mode.');
+        return null;
+      }
+      credential = admin.credential.cert({
+        projectId: config.FIREBASE_PROJECT_ID,
+        clientEmail: config.FIREBASE_CLIENT_EMAIL,
+        privateKey: config.FIREBASE_PRIVATE_KEY,
+      });
     }
 
     // Initialize Firebase Admin
     firebaseApp = admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: config.FIREBASE_PROJECT_ID,
-        clientEmail: config.FIREBASE_CLIENT_EMAIL,
-        privateKey: config.FIREBASE_PRIVATE_KEY,
-      }),
+      credential,
     });
 
     console.log('✅ Firebase Admin initialized');
@@ -77,7 +92,7 @@ const sendMulticastNotification = async (fcmTokens, title, body, data = {}) => {
 
     const response = await admin.messaging().sendMulticast(message);
     console.log(`✅ Successfully sent ${response.successCount} notifications`);
-    
+
     if (response.failureCount > 0) {
       console.warn(`⚠️  ${response.failureCount} notifications failed`);
     }
