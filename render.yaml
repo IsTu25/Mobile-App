@@ -5,7 +5,7 @@ services:
     runtime: node
     region: singapore # or oregon, frankfurt etc.
     plan: free
-    rootCommand: cd backend
+    rootDir: backend
     buildCommand: npm install
     startCommand: node server.js
     envVars:
