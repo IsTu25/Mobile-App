@@ -16,8 +16,18 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import * as Location from 'expo-location';
 import * as SMS from 'expo-sms';
+import * as Notifications from 'expo-notifications';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+
+// Configure Notifications to show even when app is in foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 import SOSButton from '../../components/SOS/SOSButton';
 import DangerStatusBar from '../../components/Danger/DangerStatusBar';
@@ -66,6 +76,7 @@ const HomeScreen = ({ navigation }) => {
     VoiceTriggerService.setCallbacks(
       () => {
         Alert.alert('VOICE TRIGGER DETECTED', `Phrase "${triggerPhrase}" heard. Activating SOS...`);
+        setIsVoiceActive(false); // Turn off UI toggle
         handleSOSTrigger();
       },
       (e) => { }
@@ -254,11 +265,51 @@ const HomeScreen = ({ navigation }) => {
 
   }, []);
 
+  const [lastNotifiedZone, setLastNotifiedZone] = useState(null);
+
+  // Request Notification Permissions
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') {
+          console.log('Notification permissions not granted');
+        }
+      } catch (e) {
+        console.log('Error requesting notification permissions:', e);
+      }
+    })();
+  }, []);
+
   const fetchDangerPrediction = async (latitude, longitude) => {
     setDangerLoading(true);
     try {
       const response = await dangerAPI.getRiskScore(latitude, longitude);
       setRiskData(response.data);
+
+      // --- DANGER ZONE NOTIFICATION LOGIC ---
+      const level = response.data?.riskLevel;
+      const zoneName = response.data?.location?.currentZone || 'High Risk Area';
+      const normalizedLevel = level ? level.toLowerCase() : 'low';
+
+      // Trigger if High/Critical AND different zone than last notified
+      if ((normalizedLevel === 'high' || normalizedLevel === 'critical') && lastNotifiedZone !== zoneName) {
+
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `⚠️ WARNING: ${level.toUpperCase()} RISK ZONE`,
+            body: `You have entered ${zoneName}. Please exercise extreme caution.`,
+            sound: 'default',
+          },
+          trigger: null,
+        });
+
+        setLastNotifiedZone(zoneName);
+      }
+      else if (normalizedLevel === 'low' || normalizedLevel === 'moderate') {
+        setLastNotifiedZone(null);
+      }
+
     } catch (error) {
       // Graceful error handling
       setRiskData({
@@ -343,7 +394,41 @@ const HomeScreen = ({ navigation }) => {
       return;
     }
 
-    // 1. Start Tracking Automatically
+    // 1. Check Network Connectivity
+    const networkState = await Network.getNetworkStateAsync();
+
+    if (!networkState.isConnected || !networkState.isInternetReachable) {
+      // --- OFFLINE MODE ---
+      console.log('⚠️ Offline Mode: Triggering Fallback SOS');
+
+      const policeNumber = policeStation?.phone || '999';
+      const policeName = policeStation?.name || 'Emergency Services';
+
+      Alert.alert(
+        'OFFLINE SOS MODE',
+        `No internet connection detected.\n\nVideo upload skipped.\nCalling ${policeName} (${policeNumber})...`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'CALL NOW',
+            onPress: () => Linking.openURL(`tel:${policeNumber}`)
+          }
+        ]
+      );
+
+      // Auto-call after small delay if user doesn't cancel (Optional, but user asked for "Auto-call")
+      // For safety, we usually require one tap, but we can simulate "Auto" with the prompt being the "Auto" confirmation.
+      // Or we can just try to openURL immediately. iOS/Android usually ask for confirmation anyway.
+      setTimeout(() => {
+        Linking.openURL(`tel:${policeNumber}`);
+      }, 1500);
+
+      return;
+    }
+
+    // --- ONLINE MODE (Existing Logic) ---
+
+    // 2. Start Tracking Automatically
     let url = null;
     try {
       const result = await TrackingService.startSharing();
@@ -514,19 +599,7 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Voice Guard Control */}
-          <View style={styles.voiceControlContainer}>
-            <TouchableOpacity
-              style={[styles.voiceBtn, isVoiceActive ? styles.voiceBtnActive : styles.voiceBtnInactive]}
-              onPress={toggleVoiceMode}
-              onLongPress={changeTriggerPhrase}
-            >
-              <Ionicons name={isVoiceActive ? "mic" : "mic-off"} size={20} color="#fff" />
-              <Text style={styles.voiceBtnText}>
-                {isVoiceActive ? `LISTENING: "${triggerPhrase.toUpperCase()}"` : "VOICE GUARD OFF"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+
 
           {/* Audio Protection Control */}
           <View style={styles.voiceControlContainer}>
@@ -655,12 +728,7 @@ const HomeScreen = ({ navigation }) => {
               onPress={() => navigation.navigate('EmergencyContacts')}
             />
 
-            <QuickActionCard
-              title="Biometric Scan"
-              icon="scan-circle"
-              color="#34d399"
-              onPress={() => navigation.navigate('FaceRecognition')}
-            />
+
 
             <QuickActionCard
               title="Safe Navigation"

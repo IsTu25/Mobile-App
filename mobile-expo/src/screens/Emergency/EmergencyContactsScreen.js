@@ -93,39 +93,24 @@ const EmergencyContactsScreen = () => {
     const handleCallContact = async (phoneNumber) => {
         const cleanPhone = phoneNumber.replace(/[^0-9+]/g, '');
 
-        if (Platform.OS === 'android') {
-            try {
-                const granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.CALL_PHONE,
-                    {
-                        title: 'Phone Call Permission',
-                        message: 'App needs access to make calls directly.',
-                        buttonNeutral: 'Ask Me Later',
-                        buttonNegative: 'Cancel',
-                        buttonPositive: 'OK',
-                    },
-                );
+        if (!cleanPhone) {
+            Alert.alert('Error', 'Invalid phone number');
+            return;
+        }
 
-                if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-                    try {
-                        await IntentLauncher.startActivityAsync('android.intent.action.CALL', {
-                            data: `tel:${cleanPhone}`
-                        });
-                    } catch (e) {
-                        console.error("Direct call failed, falling back to dialer:", e);
-                        Linking.openURL(`tel:${cleanPhone}`);
-                    }
-                } else {
-                    // Fallback if permission denied
-                    Linking.openURL(`tel:${cleanPhone}`);
-                }
-            } catch (err) {
-                console.warn(err);
-                Linking.openURL(`tel:${cleanPhone}`);
+        const url = `tel:${cleanPhone}`;
+
+        // Simpler, more robust approach that works in Expo Go
+        try {
+            const supported = await Linking.canOpenURL(url);
+            if (supported) {
+                await Linking.openURL(url);
+            } else {
+                Alert.alert('Error', 'Phone dialing not supported on this device.');
             }
-        } else {
-            // iOS always confirms
-            Linking.openURL(`tel:${cleanPhone}`);
+        } catch (err) {
+            console.error('Call Error:', err);
+            Alert.alert('Error', 'Could not open dialer.');
         }
     };
 

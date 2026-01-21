@@ -10,3 +10,4 @@ flask-cors
 soundfile
 scipy
 pydub
+gunicorn

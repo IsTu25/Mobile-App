@@ -7,7 +7,7 @@ const readline = require('readline');
  * Then enter coordinates when asked!
  */
 
-const BASE_URL = 'http://172.20.10.2:3000';
+const BASE_URL = 'http://192.168.0.148:3000';
 
 // Create readline interface for user input
 const rl = readline.createInterface({

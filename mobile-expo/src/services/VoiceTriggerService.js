@@ -27,8 +27,10 @@ class VoiceTriggerService {
     constructor() {
         this.triggerWord = 'help'; // Default
         this.isListening = false;
+        this.shouldBeActive = false; // Persistent state flag
         this.onTrigger = null;
         this.onError = null;
+        this.lastTriggerTime = 0; // debounce timestamp
 
         // Bind events
         if (Voice) {
@@ -49,12 +51,13 @@ class VoiceTriggerService {
     }
 
     async startListening() {
+        this.shouldBeActive = true;
         if (this.isListening) return;
 
         try {
             console.log('[VoiceTrigger] Starting listener...');
             // Check if native module is linked
-            if (!Voice || !Voice.start || Voice.isAvailable && !Voice.isAvailable()) {
+            if (!Voice || !Voice.start || (Voice.isAvailable && !Voice.isAvailable())) {
                 console.warn('[VoiceTrigger] Native Module missing. Are you using Expo Go? Use a Development Build.');
                 if (this.onError) this.onError(new Error("Voice module missing. Use 'npx expo run:android' or 'npx expo run:ios' to test this feature."));
                 return;
@@ -65,10 +68,16 @@ class VoiceTriggerService {
         } catch (e) {
             console.error('[VoiceTrigger] Start Error:', e);
             if (this.onError) this.onError(e);
+
+            // Retry if we should be active (e.g. mic was busy)
+            if (this.shouldBeActive) {
+                setTimeout(() => this.startListening(), 2000);
+            }
         }
     }
 
     async stopListening() {
+        this.shouldBeActive = false;
         if (!this.isListening) return;
 
         try {
@@ -90,12 +99,24 @@ class VoiceTriggerService {
         const match = heardPhrases.some(phrase => phrase.includes(this.triggerWord));
 
         if (match) {
+            const now = Date.now();
+            // 10-second debounce to avoid spamming SOS
+            if (now - this.lastTriggerTime < 10000) {
+                console.log('[VoiceTrigger] Trigger ignored (cooldown)');
+                return;
+            }
+
+            this.lastTriggerTime = now;
             console.log('!!! TRIGGER DETECTED !!!');
+
             if (this.onTrigger) this.onTrigger();
-            this.stopListening(); // Stop after trigger to avoid double-fire
+
+            // STOP Listening after successful trigger (User Requirement)
+            // This effectively puts it to "sleep" until manually enabled again.
+            this.stopListening();
         } else {
             // Restart listening if stopped implicitly (Android sometimes stops after results)
-            // Or just keep going. 
+            // Or just keep going.
             // Note: Continuous listening often requires restarting the service on 'onSpeechEnd'
         }
     }
@@ -103,21 +124,25 @@ class VoiceTriggerService {
     onSpeechEnd(e) {
         console.log('[VoiceTrigger] Speech Ended', e);
         this.isListening = false;
-        // Auto-restart? 
-        // For a seamless "Always On" experience while app is open, we should restart.
-        // But let's be careful about infinite loops if there's an error.
-        this.startListening();
+
+        // Auto-restart if we are supposed to be active
+        if (this.shouldBeActive) {
+            setTimeout(() => {
+                this.startListening();
+            }, 500);
+        }
     }
 
     onSpeechError(e) {
         console.log('[VoiceTrigger] Speech Error', e);
-        // Errors like '7' (No match) are common. Ignorable.
-        // We should try to restart if allow.
+        this.isListening = false;
 
-        // Wait 1s and restart
-        setTimeout(() => {
-            if (!this.isListening) this.startListening();
-        }, 1000);
+        // Retry if we are supposed to be active
+        if (this.shouldBeActive) {
+            setTimeout(() => {
+                this.startListening();
+            }, 1000);
+        }
     }
 }
 

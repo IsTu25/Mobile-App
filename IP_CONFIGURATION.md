@@ -2,7 +2,7 @@
 
 ## 🌐 Your Current IP Address
 
-**Current IP**: `172.20.10.2`
+**Current IP**: `192.168.0.148`
 
 This IP is already configured in all your project files! ✅
 
