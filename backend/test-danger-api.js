@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // Test the danger prediction API
 async function testDangerAPI() {
-    const BASE_URL = 'http://192.168.0.148:3000';
+    const BASE_URL = 'http://192.168.0.194:3000';
 
     // Test coordinates (Dhaka, Bangladesh)
     const testLocations = [

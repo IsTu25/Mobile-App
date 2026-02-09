@@ -1,4 +1,5 @@
 const config = require('../config/env');
+const axios = require('axios');
 
 // Mock SMS service or Twilio integration
 let twilioClient = null;
@@ -39,7 +40,28 @@ class SMSService {
       const formattedPhone = this._formatPhone(phoneNumber);
       const message = `Your Safety App verification code is: ${otp}. Valid for ${config.OTP_EXPIRY_MINUTES} minutes. Do not share this code.`;
 
-      if (twilioClient) {
+      if (config.SMS_PROVIDER === 'sms_net_bd') {
+        // SMS.Net.BD Integration
+        // Remove + from phone number if present for this provider
+        const cleanPhone = formattedPhone.replace(/^\+/, '');
+
+        const response = await axios.post('https://api.sms.net.bd/sendsms', {
+          api_key: config.SMS_NET_BD_API_KEY,
+          msg: message,
+          to: cleanPhone
+        });
+
+        if (response.data && !response.data.error) {
+          console.log(`✅ OTP SMS sent via sms.net.bd to ${cleanPhone}`);
+          return {
+            success: true,
+            messageId: response.data.request_id || 'sms-net-bd-id'
+          };
+        } else {
+          throw new Error(response.data.msg || 'SMS sending failed');
+        }
+
+      } else if (twilioClient) {
         const result = await twilioClient.messages.create({
           body: message,
           from: config.TWILIO_PHONE_NUMBER,
@@ -77,7 +99,29 @@ class SMSService {
         message += `\nLoc: ${coordinatesStr}`;
       }
 
-      if (twilioClient) {
+      if (config.SMS_PROVIDER === 'sms_net_bd') {
+        // SMS.Net.BD Integration
+        const cleanPhone = formattedPhone.replace(/^\+/, '');
+
+        const response = await axios.post('https://api.sms.net.bd/sendsms', {
+          api_key: config.SMS_NET_BD_API_KEY,
+          msg: message,
+          to: cleanPhone
+        });
+
+        if (response.data && !response.data.error) {
+          console.log(`✅ Emergency SMS sent via sms.net.bd to ${cleanPhone}`);
+          return {
+            success: true,
+            messageId: response.data.request_id || 'sms-net-bd-id'
+          };
+        } else {
+          // If error, log it but don't crash, maybe fallback or return failure
+          console.error('❌ sms.net.bd Error:', response.data);
+          return { success: false, error: response.data.msg };
+        }
+
+      } else if (twilioClient) {
         const result = await twilioClient.messages.create({
           body: message,
           from: config.TWILIO_PHONE_NUMBER,

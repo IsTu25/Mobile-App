@@ -19,6 +19,7 @@ import * as SMS from 'expo-sms';
 import * as Notifications from 'expo-notifications';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Network from 'expo-network';
 
 // Configure Notifications to show even when app is in foreground
 Notifications.setNotificationHandler({
@@ -291,9 +292,42 @@ const HomeScreen = ({ navigation }) => {
       const level = response.data?.riskLevel;
       const zoneName = response.data?.location?.currentZone || 'High Risk Area';
       const normalizedLevel = level ? level.toLowerCase() : 'low';
+      const nearestHotspot = response.data?.location?.nearestHotspot;
 
-      // Trigger if High/Critical AND different zone than last notified
-      if ((normalizedLevel === 'high' || normalizedLevel === 'critical') && lastNotifiedZone !== zoneName) {
+      // Proximity Check (Distance in meters)
+      // Check if we are approaching a hotspot
+      if (nearestHotspot && nearestHotspot.distance < 1000) {
+        const distance = nearestHotspot.distance;
+
+        // CRITICAL: Entered Zone (< 300m)
+        if (distance < 300 && lastNotifiedZone !== `entered_${nearestHotspot.name}`) {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: `⚠️ ENTERING DANGER ZONE`,
+              body: `You are entering ${nearestHotspot.name}. Risk Level: ${nearestHotspot.riskLevel}. Stay alert!`,
+              sound: 'default',
+              priority: Notifications.AndroidNotificationPriority.MAX,
+            },
+            trigger: null,
+          });
+          setLastNotifiedZone(`entered_${nearestHotspot.name}`);
+        }
+        // WARNING: Approaching Zone (300m - 1000m)
+        else if (distance >= 300 && distance < 1000 && lastNotifiedZone !== `near_${nearestHotspot.name}`) {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: `⚠️ APPROACHING DANGER ZONE`,
+              body: `You are ${distance}m away from ${nearestHotspot.name} (Risk: ${nearestHotspot.riskLevel}).`,
+              sound: 'default',
+            },
+            trigger: null,
+          });
+          setLastNotifiedZone(`near_${nearestHotspot.name}`);
+        }
+      }
+
+      // Original General Area Check (if specific hotspot logic didn't trigger)
+      else if ((normalizedLevel === 'high' || normalizedLevel === 'critical') && lastNotifiedZone !== zoneName) {
 
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -306,8 +340,12 @@ const HomeScreen = ({ navigation }) => {
 
         setLastNotifiedZone(zoneName);
       }
+      // Reset if safe
       else if (normalizedLevel === 'low' || normalizedLevel === 'moderate') {
-        setLastNotifiedZone(null);
+        // Only reset if we are far enough away to avoid flip-flopping
+        if (!nearestHotspot || nearestHotspot.distance > 1500) {
+          setLastNotifiedZone(null);
+        }
       }
 
     } catch (error) {

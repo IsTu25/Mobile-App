@@ -142,5 +142,20 @@ export const dangerAPI = {
             console.error('Error getting AI model info:', error);
             throw error;
         }
+    },
+
+    /**
+     * Get full heatmap data
+     * @returns {Promise} Heatmap points
+     */
+    getHeatmapData: async () => {
+        try {
+            const response = await apiClient.get('/danger/heatmap');
+            return response.data;
+        } catch (error) {
+            console.error('Error getting heatmap data:', error);
+            // Return empty structure on fail so app doesn't crash
+            return { data: [] };
+        }
     }
 };

@@ -237,6 +237,23 @@ class DangerPredictionController {
             next(error);
         }
     }
+    /**
+     * Get heatmap data (all points)
+     * GET /api/danger/heatmap
+     */
+    async getHeatmapData(req, res, next) {
+        try {
+            const points = await dangerPredictionService.getHeatmapData();
+
+            res.status(200).json({
+                success: true,
+                message: `Retrieved ${points.length} heatmap points`,
+                data: points
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 module.exports = new DangerPredictionController();

@@ -8,6 +8,7 @@ router.post('/risk-score', dangerPredictionController.getRiskScore);
 router.get('/nearby-incidents', dangerPredictionController.getNearbyIncidents);
 router.post('/safe-route', dangerPredictionController.getSafeRoute);
 router.get('/hotspots', dangerPredictionController.getHotspots);
+router.get('/heatmap', dangerPredictionController.getHeatmapData); // NEW
 router.get('/stats', dangerPredictionController.getDatasetStats);
 
 // NEW: AI Model routes (trained on Bangladesh data)

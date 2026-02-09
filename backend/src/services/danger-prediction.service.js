@@ -14,6 +14,11 @@ class DangerPredictionService {
         this.userReportedCrimes = [];
         this.datasetLoaded = false;
         this.datasetPath = path.join(__dirname, '../../dataset/bangladesh_crime_data.csv');
+        // Fallback if full dataset doesn't exist (though full dataset has no lat/lon, so we prefer this one)
+        if (!fs.existsSync(this.datasetPath)) {
+            // Warn or handle error
+            console.warn("Dataset with coordinates not found.");
+        }
 
         // Dhaka crime hotspots (from research + dataset)
         this.crimeHotspots = [
@@ -49,6 +54,44 @@ class DangerPredictionService {
             'Theft': 6,
             'Vandalism': 4
         };
+    }
+
+    /**
+     * Get all heatmap data points
+     * Returns array of { latitude, longitude, weight }
+     */
+    async getHeatmapData() {
+        if (!this.datasetLoaded) {
+            await this.loadCrimeDataset();
+        }
+
+        // 1. From CSV Dataset
+        const points = this.crimeData.map(crime => ({
+            latitude: crime.latitude,
+            longitude: crime.longitude,
+            weight: crime.severity || 5
+        }));
+
+        // 2. From Hotspots (High intensity)
+        this.crimeHotspots.forEach(hotspot => {
+            // Add a cluster of points to make the hotspot visible
+            points.push({
+                latitude: hotspot.lat,
+                longitude: hotspot.lon,
+                weight: hotspot.riskLevel // High weight 20-85
+            });
+        });
+
+        // 3. From User Reports
+        this.userReportedCrimes.forEach(report => {
+            points.push({
+                latitude: report.latitude,
+                longitude: report.longitude,
+                weight: report.severity || 5
+            });
+        });
+
+        return points;
     }
 
     /**

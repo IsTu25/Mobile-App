@@ -11,7 +11,7 @@ import {
     Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, Heatmap, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { dangerAPI } from '../../api/dangerAPI';
@@ -48,6 +48,8 @@ const SafeRouteScreen = ({ navigation }) => {
     const [analyzing, setAnalyzing] = useState(false);
     const [routes, setRoutes] = useState([]);
     const [selectedRoute, setSelectedRoute] = useState(null);
+    const [heatmapPoints, setHeatmapPoints] = useState([]);
+    const [showHeatmap, setShowHeatmap] = useState(true);
     const mapRef = useRef(null);
     const searchTimeout = useRef(null); // For debounce
 
@@ -63,8 +65,37 @@ const SafeRouteScreen = ({ navigation }) => {
                 latitudeDelta: 0.05,
                 longitudeDelta: 0.05,
             });
+
+            fetchHeatmapData(location.coords.latitude, location.coords.longitude);
         })();
     }, []);
+
+    const fetchHeatmapData = async (lat, lon) => {
+        try {
+            // Fetch FULL heatmap data (from CSV + Hotspots)
+            const response = await dangerAPI.getHeatmapData();
+
+            if (response && response.data) {
+                // Determine scale of weights to normalize if needed, but for now passed directly
+                // Filter out invalid points
+                const points = response.data
+                    .filter(p => p.latitude && p.longitude)
+                    .map(p => ({
+                        latitude: parseFloat(p.latitude),
+                        longitude: parseFloat(p.longitude),
+                        weight: parseFloat(p.weight || 1)
+                    }));
+
+                // Add hotspots again if not already in response (Controller adds them, but let's be safe)
+                // Actually the service adds them, so we are good.
+
+                console.log(`Loaded ${points.length} heatmap points`);
+                setHeatmapPoints(points);
+            }
+        } catch (error) {
+            console.log('Failed to fetch heatmap data:', error);
+        }
+    };
 
     // 1. Fetch Suggestions from OpenStreetMap (Nominatim)
     const fetchSuggestions = (text) => {
@@ -222,6 +253,19 @@ const SafeRouteScreen = ({ navigation }) => {
                         initialRegion={location}
                         showsUserLocation={true}
                     >
+                        {/* Heatmap Layer */}
+                        {showHeatmap && heatmapPoints.length > 0 && (
+                            <Heatmap
+                                points={heatmapPoints}
+                                opacity={0.7}
+                                radius={40}
+                                gradient={{
+                                    colors: ["#79BC6A", "#BBCF4C", "#EEC20B", "#F29305", "#E50000"],
+                                    startPoints: [0, 0.25, 0.5, 0.75, 1]
+                                }}
+                            />
+                        )}
+
                         {/* Routes */}
                         {routes.map(route => {
                             const isSelected = selectedRoute?.id === route.id;
@@ -252,12 +296,19 @@ const SafeRouteScreen = ({ navigation }) => {
                     </MapView>
                 )}
 
-                {/* Back Button */}
                 <TouchableOpacity
                     style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
                     <Ionicons name="arrow-back" size={24} color="#fff" />
+                </TouchableOpacity>
+
+                {/* Heatmap Toggle */}
+                <TouchableOpacity
+                    style={[styles.heatmapToggle, showHeatmap ? styles.heatmapActive : null]}
+                    onPress={() => setShowHeatmap(!showHeatmap)}
+                >
+                    <Ionicons name="flame" size={24} color={showHeatmap ? "#fff" : "#9ca3af"} />
                 </TouchableOpacity>
 
                 {/* Search Panel (Floating) */}
@@ -396,6 +447,29 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#334155',
         zIndex: 50,
+    },
+    heatmapToggle: {
+        position: 'absolute',
+        top: 20,
+        right: 20,
+        width: 44,
+        height: 44,
+        backgroundColor: '#1e293b',
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+        borderWidth: 1,
+        borderColor: '#334155',
+        zIndex: 50,
+    },
+    heatmapActive: {
+        backgroundColor: '#ef4444',
+        borderColor: '#ef4444',
     },
     searchPanel: {
         position: 'absolute',

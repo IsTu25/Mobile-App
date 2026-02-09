@@ -330,7 +330,7 @@ class EmergencyService {
     let subject = `🚨 URGENT: SOS Video Evidence from ${user.fullName}`;
 
     // Generate Video Link (Assuming server IP for local dev - update this IP to your machine's IP)
-    const videoLink = `http://${config.SERVER_URL || '192.168.0.148:3000'}/uploads/${file.filename}`;
+    const videoLink = `http://${config.SERVER_URL || '192.168.0.104:3000'}/uploads/${file.filename}`;
 
     let text = `
 User: ${user.fullName}
@@ -357,8 +357,9 @@ ${videoLink}
     try {
       const stats = fs.statSync(file.path);
       const fileSizeInBytes = stats.size;
-      // Absolute max safe size for Gmail attachment (Base64 overhead): ~18MB
-      const MAX_SAFE_SIZE = 18 * 1024 * 1024;
+      // Absolute max safe size for Gmail attachment (Base64 overhead): ~17MB
+      // 17MB file becomes ~22.6MB encoded (Safe within 25MB limit).
+      const MAX_SAFE_SIZE = 17 * 1024 * 1024;
 
       if (fileSizeInBytes > MAX_SAFE_SIZE) {
         console.log(`⚠️ Video is too large (${(fileSizeInBytes / 1024 / 1024).toFixed(2)}MB) for direct attachment.`);
@@ -370,7 +371,7 @@ ${videoLink}
           ffmpeg(file.path)
             .outputOptions([
               '-vcodec libx264',
-              '-crf 28',         // Compression factor (higher = smaller file)
+              '-crf 32',         // Good compression to meet 17MB target
               '-preset ultrafast',
               '-vf scale=-2:480' // Downscale to 480p
             ])
@@ -454,7 +455,18 @@ CONFIDENCE: ${(match.confidence * 100).toFixed(1)}%
         auth: {
           user: config.EMAIL_USER,
           pass: config.EMAIL_PASS
-        }
+        },
+        // Reliability settings for Gmail
+        pool: true, // Use pooled connections
+        maxConnections: 1, // Limit connections to avoid Gmail blocking
+        rateLimit: 1, // Limit rate
+        secure: true,
+        port: 465,
+        debug: true, // Show debug logs
+        logger: true, // Log to console
+        connectionTimeout: 60000,
+        greetingTimeout: 30000,
+        socketTimeout: 60000
       });
 
       await transporter.sendMail({
@@ -481,6 +493,16 @@ CONFIDENCE: ${(match.confidence * 100).toFixed(1)}%
     }
 
     console.log('🏁 Video evidence processing complete');
+
+    // Cleanup compressed file if it was created
+    if (cleanupCompressed && attachmentPath && require('fs').existsSync(attachmentPath)) {
+      try {
+        require('fs').unlinkSync(attachmentPath);
+        console.log('🧹 Cleaned up compressed video file');
+      } catch (err) {
+        console.error('Failed to cleanup compressed video:', err);
+      }
+    }
 
     return {
       stationName: targetStation.name,

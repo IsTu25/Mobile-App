@@ -8,7 +8,7 @@ module.exports = {
     API_VERSION: process.env.API_VERSION || 'v1',
 
     // Database
-    MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/safety-app',
+    MONGODB_URI: process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/safety-app',
 
     // JWT
     JWT_SECRET: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
@@ -20,8 +20,9 @@ module.exports = {
     FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : null,
 
-    // SMS Gateway (Twilio)
+    // SMS Gateway (Twilio / SMS Net BD)
     SMS_PROVIDER: process.env.SMS_PROVIDER || 'mock',
+    SMS_NET_BD_API_KEY: process.env.SMS_NET_BD_API_KEY,
     TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
     TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER,
