@@ -35,8 +35,9 @@ const RegisterScreen = ({ navigation }) => {
       return;
     }
 
-    if (!phoneNumber.trim()) {
-      Alert.alert('Error', 'Please enter your phone number');
+    // Validate phone number (Bangladesh format: 01xxxxxxxxx)
+    if (!/^01\d{9}$/.test(phoneNumber)) {
+      Alert.alert('Error', 'Please enter a valid 11-digit phone number (e.g., 01xxxxxxxxx)');
       return;
     }
 
@@ -94,7 +95,7 @@ const RegisterScreen = ({ navigation }) => {
 
       <TextInput
         style={styles.input}
-        placeholder="Phone Number (e.g., +8801234567890)"
+        placeholder="Phone Number (e.g., 01712345678)"
         value={phoneNumber}
         onChangeText={setPhoneNumber}
         keyboardType="phone-pad"

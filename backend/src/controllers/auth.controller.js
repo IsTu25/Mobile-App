@@ -44,6 +44,14 @@ class AuthController {
         });
       }
 
+      // Start With 01 and length 11
+      if (!/^01\d{9}$/.test(phoneNumber)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number must be exactly 11 digits and start with 01'
+        });
+      }
+
       const result = await authService.sendPhoneOTP(phoneNumber);
 
       console.log('✅ OTP sent successfully to:', phoneNumber);
@@ -245,6 +253,14 @@ class AuthController {
         return res.status(400).json({
           success: false,
           message: 'Phone number, password, full name, phone OTP, and email OTP are required'
+        });
+      }
+
+      // Start With 01 and length 11
+      if (!/^01\d{9}$/.test(phoneNumber)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number must be exactly 11 digits and start with 01'
         });
       }
 
