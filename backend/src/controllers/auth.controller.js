@@ -1,6 +1,45 @@
 const authService = require('../services/auth.service');
+const verificationService = require('../services/verification.service');
 
 class AuthController {
+  /**
+   * Verify Student ID Card
+   * POST /api/auth/verify-id-card
+   */
+  async verifyIDCard(req, res, next) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'Image file is required'
+        });
+      }
+
+      const imagePath = req.file.path;
+      console.log('Verifying ID card at:', imagePath);
+
+      try {
+        const result = await verificationService.verifyStudentId(imagePath);
+
+        console.log('Verification Result:', result);
+
+        res.status(200).json({
+          success: true,
+          ...result
+        });
+      } catch (err) {
+        console.error('Verification failed:', err);
+        return res.status(500).json({
+          success: false,
+          message: 'Verification process failed',
+          error: err.message
+        });
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /**
    * Send OTP to email
    * POST /api/auth/send-email-otp

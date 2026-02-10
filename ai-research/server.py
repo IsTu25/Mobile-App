@@ -9,9 +9,19 @@ from audio_analytics.audio_classifier import AudioDangerClassifier
 app = Flask(__name__)
 CORS(app)
 
-print("Loading Gut Feeling Model...")
-gut_feeling_model = tf.keras.models.load_model('gut_feeling_model.h5')
-print("✅ Gut Feeling Model Loaded!")
+import os
+
+# Get absolute path to the model file
+current_dir = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(current_dir, 'gut_feeling_model.h5')
+
+if os.path.exists(model_path):
+    print(f"Loading Gut Feeling Model from {model_path}...")
+    gut_feeling_model = tf.keras.models.load_model(model_path)
+    print("✅ Gut Feeling Model Loaded!")
+else:
+    print(f"⚠️ Warning: Model file not found at {model_path}. Gut feeling features will be disabled.")
+    gut_feeling_model = None
 
 print("Loading Audio Danger Classifier...")
 audio_classifier = AudioDangerClassifier()

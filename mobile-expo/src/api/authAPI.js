@@ -13,6 +13,26 @@ export const authAPI = {
     return response.data;
   },
 
+  // Verify ID Card
+  verifyIDCard: async (imageUri) => {
+    const formData = new FormData();
+    formData.append('idCard', {
+      uri: imageUri,
+      name: 'id_card.jpg',
+      type: 'image/jpeg',
+    });
+
+    const response = await api.post('/auth/verify-id-card', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      transformRequest: (data, headers) => {
+        return data; // Prevent axios from stringifying FormData
+      },
+    });
+    return response.data;
+  },
+
   // Verify OTP and register/login
   verifyOTP: async (phoneNumber, otp, fullName = null, email = null) => {
     const response = await api.post('/auth/verify-otp', {

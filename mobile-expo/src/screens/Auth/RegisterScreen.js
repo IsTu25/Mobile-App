@@ -7,7 +7,10 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Image,
+  ScrollView,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useDispatch } from 'react-redux';
 import { authAPI } from '../../api/authAPI';
 import { setLoading, setError } from '../../store/slices/authSlice';
@@ -18,13 +21,93 @@ const RegisterScreen = ({ navigation }) => {
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoadingState] = useState(false);
+
+  // Verification State
+  const [idCardImage, setIdCardImage] = useState(null);
+  const [isIdVerified, setIsIdVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [studentData, setStudentData] = useState(null);
+
   const dispatch = useDispatch();
 
   const validateEmail = (email) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
+  const pickIdCard = async () => {
+    // Request permission
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setIdCardImage(result.assets[0].uri);
+      verifyIdCard(result.assets[0].uri);
+    }
+  };
+
+  const takeIdCardPhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Sorry, we need camera permissions to make this work!');
+      return;
+    }
+
+    let result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setIdCardImage(result.assets[0].uri);
+      verifyIdCard(result.assets[0].uri);
+    }
+  };
+
+  const verifyIdCard = async (uri) => {
+    setVerifying(true);
+    try {
+      const response = await authAPI.verifyIDCard(uri);
+
+      if (response.success && response.is_valid) {
+        setIsIdVerified(true);
+        setStudentData(response.extracted_data);
+
+        // Auto-fill available data
+        if (response.extracted_data.student_name) {
+          setFullName(response.extracted_data.student_name);
+        }
+
+        Alert.alert('Success', 'Student Identity Verified Successfully!');
+      } else {
+        setIsIdVerified(false);
+        setStudentData(null);
+        Alert.alert('Verification Failed', response.reason || 'Could not verify student ID.');
+      }
+    } catch (error) {
+      console.error('Verification Error:', error);
+      Alert.alert('Error', 'Failed to verify ID card. Please try again.');
+      setIsIdVerified(false);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const handleNext = async () => {
+    // Check ID Verification first
+    if (!isIdVerified) {
+      Alert.alert('Verification Required', 'Please upload and verify your Student ID card first.');
+      return;
+    }
+
     if (!fullName.trim()) {
       Alert.alert('Error', 'Please enter your full name');
       return;
@@ -60,7 +143,9 @@ const RegisterScreen = ({ navigation }) => {
           fullName,
           email,
           phoneNumber,
-          password
+          password,
+          studentId: studentData?.student_id,
+          department: studentData?.department
         }
       });
     } catch (error) {
@@ -72,16 +157,50 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Welcome to Nirapotta</Text>
       <Text style={styles.subtitle}>Enter your details to get started</Text>
 
+      <Text style={styles.sectionHeader}>1. Identity Verification</Text>
+
+      <View style={styles.verificationContainer}>
+        {idCardImage ? (
+          <Image source={{ uri: idCardImage }} style={styles.idCardPreview} />
+        ) : (
+          <View style={styles.idCardPlaceholder}>
+            <Text style={styles.placeholderText}>No ID Card Selected</Text>
+          </View>
+        )}
+
+        {verifying ? (
+          <ActivityIndicator size="large" color="#e63946" style={styles.loader} />
+        ) : (
+          <View style={styles.buttonRow}>
+            <TouchableOpacity style={styles.uploadButton} onPress={takeIdCardPhoto}>
+              <Text style={styles.uploadButtonText}>📷 Camera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.uploadButton} onPress={pickIdCard}>
+              <Text style={styles.uploadButtonText}>🖼️ Gallery</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isIdVerified && (
+          <View style={styles.verifiedBadge}>
+            <Text style={styles.verifiedText}>✅ Verified: {studentData?.student_id}</Text>
+          </View>
+        )}
+      </View>
+
+      <Text style={styles.sectionHeader}>2. Personal Details</Text>
+
       <TextInput
-        style={styles.input}
+        style={[styles.input, isIdVerified && styles.inputLocked]}
         placeholder="Full Name"
         value={fullName}
         onChangeText={setFullName}
         autoCapitalize="words"
+        editable={!isIdVerified}
       />
 
       <TextInput
@@ -112,15 +231,19 @@ const RegisterScreen = ({ navigation }) => {
       />
 
       <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
+        style={[styles.button, (!isIdVerified || loading) && styles.buttonDisabled]}
         onPress={handleNext}
-        disabled={loading}>
+        disabled={!isIdVerified || loading}>
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.buttonText}>Next</Text>
         )}
       </TouchableOpacity>
+
+      {!isIdVerified && (
+        <Text style={styles.helperText}>* You must verify your Student ID to proceed.</Text>
+      )}
 
       <TouchableOpacity
         style={styles.linkButton}
@@ -131,16 +254,97 @@ const RegisterScreen = ({ navigation }) => {
       <Text style={styles.footer}>
         By continuing, you agree to our Terms and Privacy Policy
       </Text>
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     padding: 20,
     backgroundColor: '#f5f5f5',
+    flexGrow: 1,
     justifyContent: 'center',
+  },
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 10,
+    color: '#444',
+  },
+  verificationContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  idCardPreview: {
+    width: 200,
+    height: 120,
+    resizeMode: 'contain',
+    borderRadius: 8,
+    marginBottom: 10,
+    backgroundColor: '#f0f0f0',
+  },
+  idCardPlaceholder: {
+    width: 200,
+    height: 120,
+    backgroundColor: '#eee',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderStyle: 'dashed',
+  },
+  placeholderText: {
+    color: '#888',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  uploadButton: {
+    backgroundColor: '#333',
+    padding: 10,
+    borderRadius: 5,
+    flex: 0.48,
+    alignItems: 'center',
+  },
+  uploadButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  verifiedBadge: {
+    marginTop: 10,
+    backgroundColor: '#d4edda',
+    padding: 8,
+    borderRadius: 5,
+    width: '100%',
+    alignItems: 'center',
+  },
+  verifiedText: {
+    color: '#155724',
+    fontWeight: 'bold',
+  },
+  loader: {
+    marginVertical: 10,
+  },
+  helperText: {
+    color: '#e63946',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 5,
+  },
+  inputLocked: {
+    backgroundColor: '#e9ecef',
+    color: '#495057',
   },
   title: {
     fontSize: 28,

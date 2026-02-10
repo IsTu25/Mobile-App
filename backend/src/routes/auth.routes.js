@@ -3,8 +3,10 @@ const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { otpLimiter, authLimiter } = require('../middleware/rate-limit.middleware');
+const upload = require('../middleware/upload.middleware');
 
 // Public routes
+router.post('/verify-id-card', upload.single('idCard'), authController.verifyIDCard);
 router.post('/send-otp', otpLimiter, authController.sendOTP);
 router.post('/send-email-otp', otpLimiter, authController.sendEmailOTP);
 router.post('/verify-otp', authLimiter, authController.verifyOTP);
