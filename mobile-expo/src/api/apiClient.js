@@ -1,13 +1,9 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { API_BASE_URL } from '../config/constants';
 
 // Backend Configuration
-const BASE_URL = Platform.select({
-  ios: 'http://192.168.0.104:3000/api',
-  android: 'http://192.168.0.104:3000/api',
-  default: 'http://192.168.0.104:3000/api',
-});
+const BASE_URL = API_BASE_URL;
 
 // Debug: Log the BASE_URL being used
 console.log('📡 API BASE_URL:', BASE_URL);

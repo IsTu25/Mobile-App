@@ -21,6 +21,8 @@ import SafeRouteScreen from './src/screens/Home/SafeRouteScreen';
 import DashboardScreen from './src/screens/Dashboard/DashboardScreen';
 import CrimeReportScreen from './src/screens/Reports/CrimeReportScreen';
 import MyReportsScreen from './src/screens/Reports/MyReportsScreen';
+import SOSStatusScreen from './src/screens/Emergency/SOSStatusScreen';
+import TrackingViewerScreen from './src/screens/Home/TrackingViewerScreen';
 
 const Stack = createStackNavigator();
 
@@ -73,6 +75,16 @@ export default function App() {
           <Stack.Screen
             name="SOSVideo"
             component={SOSVideoScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="SOSStatus"
+            component={SOSStatusScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="TrackingViewer"
+            component={TrackingViewerScreen}
             options={{ headerShown: false }}
           />
           <Stack.Screen

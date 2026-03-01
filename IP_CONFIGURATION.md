@@ -2,7 +2,7 @@
 
 ## 🌐 Your Current IP Address
 
-**Current IP**: `192.168.0.194`
+**Current IP**: `192.168.0.101`
 
 This IP is already configured in all your project files! ✅
 
@@ -184,9 +184,9 @@ Set a static IP in your router settings for your Mac's MAC address.
 ## 📊 Current Configuration
 
 ```
-Backend Server:  http://172.20.10.2:3000
-Mobile App API:  http://172.20.10.2:3000/api
-Health Check:    http://172.20.10.2:3000/health
+Backend Server:  http://192.168.0.101:3000
+Mobile App API:  http://192.168.0.101:3000/api
+Health Check:    http://192.168.0.101:3000/health
 ```
 
 **Status**: ✅ All files configured correctly!
@@ -206,7 +206,7 @@ ipconfig getifaddr en0
 ./update-ip.sh 172.20.10.2
 
 # Test connection
-curl http://172.20.10.2:3000/health
+curl http://192.168.0.101:3000/health
 ```
 
 Your IP configuration is ready to use! 🎉

@@ -3,17 +3,16 @@ const path = require('path');
 const fs = require('fs');
 
 class VerificationService {
-    async verifyStudentId(imagePath) {
+    async verifyId(imagePath, idType, idNumber) {
         return new Promise((resolve, reject) => {
             // Path to python script
-            // Assuming backend is at /project/backend, and script is at /project/ai-research/verify_student.py
             const scriptPath = path.resolve(__dirname, '../../../ai-research/verify_student.py');
 
             // Prefer Python 3.12 Framework path as we confirmed it has dependencies
             const frameworkPath312 = '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3';
             const venvPath = path.resolve(__dirname, '../../../../.venv/bin/python');
 
-            let pythonCmd = 'python3'; // Default to python3, not python (which is v2/missing)
+            let pythonCmd = 'python3';
 
             if (fs.existsSync(frameworkPath312)) {
                 pythonCmd = frameworkPath312;
@@ -21,7 +20,8 @@ class VerificationService {
                 pythonCmd = venvPath;
             }
 
-            const command = `"${pythonCmd}" "${scriptPath}" "${imagePath}" --json-output`;
+            // Command now includes idType and idNumber
+            const command = `"${pythonCmd}" "${scriptPath}" "${imagePath}" "${idType}" "${idNumber}" --json-output`;
 
             console.log(`Executing verification command: ${command}`);
 
@@ -31,14 +31,11 @@ class VerificationService {
                 }
 
                 if (error && error.code !== 0 && error.code !== 2) {
-                    // Code 2 is verification failure, which is "success" in execution but failed verification logic
-                    // Other codes are actual execution errors
                     console.error(`Verification Script Execution Error: ${error.message}`);
                     return reject(new Error('Failed to execute verification script'));
                 }
 
                 try {
-                    // stdout should contain the JSON result
                     const result = JSON.parse(stdout.trim());
                     resolve(result);
                 } catch (parseError) {

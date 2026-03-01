@@ -14,81 +14,70 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration
-DB_PATH = os.path.join(os.path.dirname(__file__), 'student_database.json')
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+DB_PATHS = {
+    "nid": os.path.join(BASE_DIR, 'backend', 'data', 'nid_data.json'),
+    "birth_certificate": os.path.join(BASE_DIR, 'backend', 'data', 'birth_certificate_data.json'),
+    "student": os.path.join(os.path.dirname(__file__), 'student_database.json') # Keep for backward compatibility
+}
 
-def load_database():
-    if not os.path.exists(DB_PATH):
-        print(f"Error: Database file '{DB_PATH}' not found.")
+def load_database(id_type):
+    path = DB_PATHS.get(id_type)
+    if not path or not os.path.exists(path):
+        print(f"Error: Database file for '{id_type}' not found at {path}.")
         return []
-    with open(DB_PATH, 'r') as f:
+    with open(path, 'r') as f:
         return json.load(f)
 
-def extract_id_info(image_path: str) -> Optional[Dict[str, Any]]:
+def extract_id_info(image_path: str, id_type: str) -> Optional[Dict[str, Any]]:
     """
-    Uses Gemini 1.5 Flash to extract information from the ID card image.
-    Requires GEMINI_API_KEY environment variable.
+    Uses Gemini to extract information from the ID card image.
     """
     api_key = os.environ.get("GEMINI_API_KEY")
     
     if not genai:
         print("Error: 'google-generativeai' library is missing.")
-        print("Please install it using: pip install google-generativeai")
         return None
         
     if not api_key:
-        print("Error: GEMINI_API_KEY environment variable not set.")
-        print("Please export GEMINI_API_KEY='your_api_key_here'")
+        print("Error: GEMINI_API_KEY environment variable not set.", file=sys.stderr)
         return None
 
     if not os.path.exists(image_path):
         print(f"Error: Image file '{image_path}' not found.")
         return None
 
-    print("Contacting Gemini API for extraction...")
+    print(f"Contacting Gemini API for {id_type} extraction...")
     genai.configure(api_key=api_key)
     
     try:
-        # Use a model that supports vision (Gemini 2.5 Flash is fast and cheap)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-flash-latest') # Using latest flash alias for best compatibility
         
-        # Upload file (Gemini API requires upload for analysis in some contexts, or inline data)
-        # Using inline data for simplicity if file is small, but new SDK prefers file API for 1.5
-        # Let's try standard file upload patterns or PIL image if supported.
-        # The python SDK supports passing MIME types directly.
-        
-        # Simplest way with current SDK:
         import PIL.Image
         img = PIL.Image.open(image_path)
 
-        prompt = """
-        Analyze the provided student ID card image and extract ONLY the following fields exactly as shown on the card:
-        - university_name
-        - student_id
-        - student_name
-        - program
-        - department
-        - country
+        prompt = f"""
+        Analyze the provided {id_type} image and extract ONLY the following fields exactly as shown:
+        - id_number (The unique identification number)
+        - name (Full name of the person)
+        - date_of_birth (Format: YYYY-MM-DD, try to normalize if different)
 
         Rules:
-        - Extract text ONLY if it is clearly visible on the card.
-        - Normalize output: Names in UPPERCASE, Remove extra spaces, Keep original spelling.
+        - Extract text ONLY if it is clearly visible.
+        - Normalize output: Names in UPPERCASE, Remove extra spaces.
         - Return ONLY raw JSON string, no markdown formatting.
         - If a field is missing, use null.
         
         Format:
-        {
-          "university_name": "...",
-          "student_id": "...",
-          "student_name": "...",
-          "program": "...",
-          "department": "...",
-          "country": "..."
-        }
+        {{
+          "id_number": "...",
+          "name": "...",
+          "date_of_birth": "..."
+        }}
         """
 
         response = model.generate_content([prompt, img])
         
-        # Clean up JSON if model adds markdown blocks
         text = response.text
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0]
@@ -101,93 +90,93 @@ def extract_id_info(image_path: str) -> Optional[Dict[str, Any]]:
         print(f"Error extracting data: {e}")
         return None
 
-def validate_student(extracted_data: Dict[str, Any], database: list) -> Dict[str, Any]:
+def validate_id(extracted_data: Dict[str, Any], database: list, provided_id_number: str) -> Dict[str, Any]:
     if not extracted_data:
         return {"is_valid": False, "reason": "Extraction failed"}
 
-    student_id = extracted_data.get("student_id")
-    if not student_id:
-        return {"is_valid": False, "reason": "Student ID not found on card"}
+    # Use extracted ID number if provided_id_number is not given, but usually we want to match both
+    extracted_id = str(extracted_data.get("id_number", "")).strip()
+    
+    if not extracted_id:
+         return {"is_valid": False, "reason": "ID number not found on image"}
 
-    print(f"Validating Student ID: {student_id}")
+    print(f"Validating ID Number: {provided_id_number} (Extracted: {extracted_id})")
 
-    # Find record
-    record = next((item for item in database if item["student_id"] == str(student_id)), None)
+    # 1. Match provided ID number with extracted ID number (strict check)
+    if provided_id_number and provided_id_number != extracted_id:
+        return {"is_valid": False, "reason": f"ID number mismatch: Provided='{provided_id_number}' vs Extracted='{extracted_id}'"}
+
+    # 2. Find record in database
+    record = next((item for item in database if str(item.get("id_number")) == extracted_id), None)
 
     if not record:
-        return {"is_valid": False, "reason": f"Student ID {student_id} not found in database"}
+        return {"is_valid": False, "reason": f"ID Number {extracted_id} not found in database"}
 
-    # Validate strictly
+    # 3. Validate name and DOB
     mismatches = []
     
     # Check Name
-    db_name = record["student_name"].upper().strip()
-    card_name = extracted_data["student_name"].upper().strip() if extracted_data["student_name"] else ""
+    db_name = str(record.get("name", "")).upper().strip()
+    card_name = str(extracted_data.get("name", "")).upper().strip()
     
     if db_name != card_name:
-         mismatches.append(f"Name mismatch: DB='{db_name}' vs Card='{card_name}'")
+         mismatches.append(f"Name mismatch: DB='{db_name}' vs Image='{card_name}'")
 
-    # Check Department
-    db_dept = record.get("department", "").upper().strip()
-    card_dept = extracted_data.get("department", "").upper().strip() if extracted_data.get("department") else ""
-    if db_dept != card_dept:
-         mismatches.append(f"Department mismatch: DB='{db_dept}' vs Card='{card_dept}'")
+    # Check DOB
+    db_dob = str(record.get("date_of_birth", "")).strip()
+    card_dob = str(extracted_data.get("date_of_birth", "")).strip()
+    
+    if db_dob != card_dob:
+         mismatches.append(f"Date of Birth mismatch: DB='{db_dob}' vs Image='{card_dob}'")
 
     if not mismatches:
-        return {"is_valid": True, "reason": "Verification Successful. Identity Confirmed."}
+        return {"is_valid": True, "reason": "Verification Successful. Identity Confirmed.", "data": record}
     else:
         return {"is_valid": False, "reason": "; ".join(mismatches)}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python verify_student.py <path_to_id_card_image> [--json-output]")
+        print("Usage: python verify_student.py <image_path> [id_type] [id_number] [--json-output]")
         sys.exit(1)
 
     image_path = sys.argv[1]
+    id_type = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else "nid"
+    provided_id_number = sys.argv[3] if len(sys.argv) > 3 and not sys.argv[3].startswith("--") else None
     json_output = "--json-output" in sys.argv
 
-    # Redirect print to stderr if json_output is on, to keep stdout clean for JSON
     if json_output:
         original_stdout = sys.stdout
         sys.stdout = sys.stderr
 
     # 1. Load DB
-    db = load_database()
+    db = load_database(id_type)
     if not db:
+        if json_output:
+            sys.stdout = original_stdout
+            print(json.dumps({"is_valid": False, "reason": f"Database for {id_type} not found"}))
         sys.exit(1)
-        
-    print(f"Loaded {len(db)} records from database.")
     
     # 2. Extract Data
-    extracted_data = extract_id_info(image_path)
+    extracted_data = extract_id_info(image_path, id_type)
     
     if extracted_data:
-        print("-" * 30)
-        print("EXTRACTED DATA:")
-        print(json.dumps(extracted_data, indent=2))
-        print("-" * 30)
-        
         # 3. Validate
-        result = validate_student(extracted_data, db)
+        result = validate_id(extracted_data, db, provided_id_number)
         
         if json_output:
-            # Restore stdout and print ONLY the result JSON
             sys.stdout = original_stdout
-            # Combine extracted data into the result for the frontend to use
             result['extracted_data'] = extracted_data
             print(json.dumps(result))
         else:
-            print("\nVERIFICATION RESULT:")
-            print(json.dumps(result, indent=2))
+            print("-" * 30)
+            print("EXTRACTED DATA:", json.dumps(extracted_data, indent=2))
+            print("-" * 30)
+            print("VERIFICATION RESULT:", json.dumps(result, indent=2))
         
-        # Exit with status code for automation
-        if result["is_valid"]:
-            sys.exit(0)
-        else:
-            sys.exit(2) # 2 for verification failure
+        sys.exit(0 if result["is_valid"] else 2)
     else:
-        print("Failed to process image.")
         if json_output:
             sys.stdout = original_stdout
-            print(json.dumps({"is_valid": False, "reason": "Failed to process image"}))
+            print(json.dumps({"is_valid": False, "reason": "Failed to extract text from image"}))
         sys.exit(1)
+

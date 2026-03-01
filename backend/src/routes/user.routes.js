@@ -82,4 +82,43 @@ router.post('/profile/photo', authenticateToken, upload.single('photo'), async (
     }
 });
 
+/**
+ * Update user's last known location
+ * PATCH /api/user/location
+ */
+router.patch('/location', authenticateToken, async (req, res, next) => {
+    try {
+        const { latitude, longitude } = req.body;
+
+        if (latitude === undefined || longitude === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'Latitude and longitude are required'
+            });
+        }
+
+        const user = await User.findOneAndUpdate(
+            { userId: req.user.userId },
+            {
+                $set: {
+                    lastKnownLocation: {
+                        type: 'Point',
+                        coordinates: [parseFloat(longitude), parseFloat(latitude)]
+                    }
+                }
+            },
+            { new: true }
+        );
+
+        res.status(200).json({
+            success: true,
+            data: {
+                lastKnownLocation: user.lastKnownLocation
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 module.exports = router;

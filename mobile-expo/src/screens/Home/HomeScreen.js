@@ -45,7 +45,9 @@ import VoiceTriggerService from '../../services/VoiceTriggerService';
 import GutFeelingService from '../../services/GutFeelingService';
 import TrackingService from '../../services/TrackingService';
 import AudioAnalysisService from '../../services/AudioAnalysisService';
+import ScreamDetectionService from '../../services/ScreamDetectionService';
 import PoliceStationService from '../../services/PoliceStationService';
+import NotificationService from '../../services/NotificationService';
 import NearestPoliceStationCard from '../../components/Police/NearestPoliceStationCard';
 
 const HomeScreen = ({ navigation }) => {
@@ -58,7 +60,10 @@ const HomeScreen = ({ navigation }) => {
   const [policeLoading, setPoliceLoading] = useState(false);
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isAudioProtectionActive, setIsAudioProtectionActive] = useState(false);
+  const [isScreamDetectionActive, setIsScreamDetectionActive] = useState(false);
   const [triggerPhrase, setTriggerPhrase] = useState('help');
+  const [voiceSensitivity, setVoiceSensitivity] = useState(0.7); // 70% volume required
+  const [voiceMode, setVoiceMode] = useState('loud'); // 'loud', 'any', 'scream_only'
   const [isTracking, setIsTracking] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState(null);
 
@@ -75,12 +80,28 @@ const HomeScreen = ({ navigation }) => {
   useEffect(() => {
     // 1. Voice
     VoiceTriggerService.setCallbacks(
-      () => {
-        Alert.alert('VOICE TRIGGER DETECTED', `Phrase "${triggerPhrase}" heard. Activating SOS...`);
-        setIsVoiceActive(false); // Turn off UI toggle
+      (reason) => {
+        Alert.alert('VOICE TRIGGER DETECTED', `${reason} triggered. Activating SOS...`);
+        setIsVoiceActive(false);
         handleSOSTrigger();
       },
-      (e) => { }
+      (e) => { console.log('Voice Error:', e); },
+      (vol) => { /* Optional: show volume meter in UI */ }
+    );
+
+    // 2. Scream Detection
+    ScreamDetectionService.setCallbacks(
+      (data) => {
+        Alert.alert(
+          '🚨 LOUD SCREAM DETECTED',
+          `Volume: ${(data.volume * 100).toFixed(0)}%\nConfidence: ${(data.confidence * 100).toFixed(0)}%\n\nTrigger SOS?`,
+          [
+            { text: 'False Alarm', style: 'cancel' },
+            { text: 'SOS NOW', style: 'destructive', onPress: () => handleSOSTrigger() }
+          ]
+        );
+      },
+      (vol, db) => { /* Volume meter */ }
     );
 
     // 2. Digital Gut Feeling (Start Monitoring)
@@ -104,11 +125,29 @@ const HomeScreen = ({ navigation }) => {
       setIsTracking(active);
     })();
 
+    // 4. Push Notifications
+    NotificationService.registerForPushNotificationsAsync();
+    const cleanupNotifications = NotificationService.initListeners(
+      (notification) => {
+        // Handle incoming notification while app is open
+        console.log('Foreground notification:', notification);
+      },
+      (response) => {
+        // Handle tap on notification
+        const { data } = response.notification.request.content;
+        if (data?.type === 'sos_alert') {
+          navigation.navigate('SOSStatus', { alertId: data.alertId });
+        }
+      }
+    );
+
     // Cleanup
     return () => {
       VoiceTriggerService.stopListening();
+      ScreamDetectionService.stopMonitoring();
       GutFeelingService.stopMonitoring();
       AudioAnalysisService.stopMonitoring();
+      cleanupNotifications();
     };
   }, [triggerPhrase, location]);
 
@@ -120,18 +159,70 @@ const HomeScreen = ({ navigation }) => {
     } else {
       Alert.alert(
         'Activate Voice Guard?',
-        `System will listen for the phrase: "${triggerPhrase}".\n\n(Note: Requires background permission for full functionality)`,
+        `System will listen for the keyword "${triggerPhrase}".\nMode: ${voiceMode}\nSensitivity: ${(voiceSensitivity * 100).toFixed(0)}%`,
         [
           { text: 'Cancel', style: 'cancel' },
+          { text: 'Settings', onPress: showVoiceGuardSettings },
           {
             text: 'Activate',
             onPress: async () => {
+              VoiceTriggerService.setTriggerWord(triggerPhrase);
+              VoiceTriggerService.setVolumeThreshold(voiceSensitivity);
+              VoiceTriggerService.setRequireLoudness(voiceMode === 'loud');
+              VoiceTriggerService.setDetectAnyScream(voiceMode === 'any_scream');
               await VoiceTriggerService.startListening();
               setIsVoiceActive(true);
             }
           }
         ]
       );
+    }
+  };
+
+  const showVoiceGuardSettings = () => {
+    Alert.alert(
+      'Voice Guard Settings',
+      'Adjust sensitivity and detection mode.',
+      [
+        { text: 'Phrase', onPress: changeTriggerPhrase },
+        {
+          text: 'Sensitivity',
+          onPress: () => {
+            Alert.alert('Sensitivity', 'How loud do you need to be?', [
+              { text: 'Low (90%)', onPress: () => setVoiceSensitivity(0.9) },
+              { text: 'Medium (70%)', onPress: () => setVoiceSensitivity(0.7) },
+              { text: 'High (50%)', onPress: () => setVoiceSensitivity(0.5) },
+            ]);
+          }
+        },
+        {
+          text: 'Mode',
+          onPress: () => {
+            Alert.alert('Detection Mode', 'Choose behavior:', [
+              { text: 'Scream Word', onPress: () => setVoiceMode('loud') },
+              { text: 'Any Word', onPress: () => setVoiceMode('any') },
+              { text: 'Any Scream', onPress: () => setVoiceMode('any_scream') },
+            ]);
+          }
+        },
+        { text: 'Done' }
+      ]
+    );
+  };
+
+  const toggleScreamDetection = async () => {
+    if (isScreamDetectionActive) {
+      await ScreamDetectionService.stopMonitoring();
+      setIsScreamDetectionActive(false);
+      Alert.alert('Scream Detection', 'Deactivated.');
+    } else {
+      const result = await ScreamDetectionService.startMonitoring();
+      if (result.success) {
+        setIsScreamDetectionActive(true);
+        Alert.alert('Scream Detection', 'System Active. Monitoring decibel levels.');
+      } else {
+        Alert.alert('Error', result.error);
+      }
     }
   };
 
@@ -268,19 +359,8 @@ const HomeScreen = ({ navigation }) => {
 
   const [lastNotifiedZone, setLastNotifiedZone] = useState(null);
 
-  // Request Notification Permissions
-  useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== 'granted') {
-          console.log('Notification permissions not granted');
-        }
-      } catch (e) {
-        console.log('Error requesting notification permissions:', e);
-      }
-    })();
-  }, []);
+  // No longer needed as NotificationService handles it
+  useEffect(() => { }, []);
 
   const fetchDangerPrediction = async (latitude, longitude) => {
     setDangerLoading(true);
@@ -371,19 +451,11 @@ const HomeScreen = ({ navigation }) => {
   const handleStartLiveLocation = async () => {
     setLoading(true);
     try {
-      const { trackingUrl: url } = await TrackingService.startSharing();
+      const { trackingUrl: url, sessionId } = await TrackingService.startSharing();
       setTrackingUrl(url);
       setIsTracking(true);
 
-      Alert.alert(
-        'Live Location Active',
-        'Your location is now being shared in real-time.',
-        [
-          { text: 'OK' },
-          { text: 'Notify Contacts (SMS)', onPress: () => notifyContacts(url) },
-          { text: 'Share Link (Manual)', onPress: () => shareTrackingLink(url) }
-        ]
-      );
+      navigation.navigate('TrackingViewer', { sessionId, trackingUrl: url });
     } catch (error) {
       console.error(error);
       Alert.alert('Error', 'Failed to start live location. Ensure backend is running.');
@@ -639,15 +711,33 @@ const HomeScreen = ({ navigation }) => {
 
 
 
-          {/* Audio Protection Control */}
+          {/* Enhanced Audio Controls */}
           <View style={styles.voiceControlContainer}>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+              <TouchableOpacity
+                style={[styles.voiceBtn, { flex: 1 }, isVoiceActive ? styles.voiceBtnActive : styles.voiceBtnInactive]}
+                onPress={toggleVoiceMode}
+              >
+                <Ionicons name={isVoiceActive ? "mic" : "mic-off"} size={18} color="#fff" />
+                <Text style={styles.voiceBtnText}>{isVoiceActive ? "VOICE GUARD: ON" : "VOICE GUARD"}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.voiceBtn, { flex: 1 }, isScreamDetectionActive ? styles.voiceBtnActive : styles.voiceBtnInactive]}
+                onPress={toggleScreamDetection}
+              >
+                <Ionicons name={isScreamDetectionActive ? "alert" : "notifications-off"} size={18} color="#fff" />
+                <Text style={styles.voiceBtnText}>{isScreamDetectionActive ? "SCREAM DETECT: ON" : "SCREAM DETECT"}</Text>
+              </TouchableOpacity>
+            </View>
+
             <TouchableOpacity
               style={[styles.voiceBtn, isAudioProtectionActive ? styles.voiceBtnActive : styles.voiceBtnInactive]}
               onPress={toggleAudioProtection}
             >
-              <Ionicons name={isAudioProtectionActive ? "volume-high" : "volume-mute"} size={20} color="#fff" />
+              <Ionicons name={isAudioProtectionActive ? "shield-checkmark" : "shield-outline"} size={20} color="#fff" />
               <Text style={styles.voiceBtnText}>
-                {isAudioProtectionActive ? "AUDIO PROTECTION ON" : "AUDIO PROTECTION OFF"}
+                {isAudioProtectionActive ? "AI AUDIO ANALYSIS ACTIVE" : "ACTIVATE AI AUDIO PROTECTION"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -731,7 +821,7 @@ const HomeScreen = ({ navigation }) => {
 
             {/* NEW: Live Location Card */}
             {isTracking ? (
-              <TouchableOpacity style={[styles.actionCard, { borderColor: '#ef4444', borderWidth: 1 }]} onPress={handleStopLiveLocation}>
+              <TouchableOpacity style={[styles.actionCard, { borderColor: '#ef4444', borderWidth: 1 }]} onPress={() => navigation.navigate('TrackingViewer', { trackingUrl })}>
                 <LinearGradient
                   colors={['#450a0a', '#7f1d1d']}
                   style={styles.actionCardGradient}
@@ -742,11 +832,11 @@ const HomeScreen = ({ navigation }) => {
                     <Ionicons name="stop" size={22} color="#fff" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.actionTitle}>Stop Sharing Location</Text>
-                    <Text style={{ color: '#fca5a5', fontSize: 10 }}>Status: LIVE</Text>
+                    <Text style={styles.actionTitle}>Viewing Live Tracker</Text>
+                    <Text style={{ color: '#fca5a5', fontSize: 10 }}>Tap to view map or share link</Text>
                   </View>
-                  <TouchableOpacity onPress={() => shareTrackingLink(trackingUrl)}>
-                    <Ionicons name="share-social" size={24} color="#fff" />
+                  <TouchableOpacity onPress={handleStopLiveLocation}>
+                    <Ionicons name="close-circle" size={24} color="#fff" />
                   </TouchableOpacity>
                 </LinearGradient>
               </TouchableOpacity>

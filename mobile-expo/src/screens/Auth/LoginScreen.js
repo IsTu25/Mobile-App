@@ -25,6 +25,7 @@ const { width, height } = Dimensions.get('window');
 const LoginScreen = ({ navigation }) => {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [password, setPassword] = useState('');
+    const [loginMode, setLoginMode] = useState('password'); // 'password' or 'otp'
     const [loading, setLocalLoading] = useState(false);
     const dispatch = useDispatch();
 
@@ -49,8 +50,13 @@ const LoginScreen = ({ navigation }) => {
     }, []);
 
     const handleLogin = async () => {
-        if (!phoneNumber.trim() || !password) {
-            Alert.alert('Incomplete', 'Please provide both phone number and password.');
+        if (!phoneNumber.trim()) {
+            Alert.alert('Incomplete', 'Please provide your phone number.');
+            return;
+        }
+
+        if (loginMode === 'password' && !password) {
+            Alert.alert('Incomplete', 'Please provide your password.');
             return;
         }
 
@@ -58,19 +64,25 @@ const LoginScreen = ({ navigation }) => {
         dispatch(setLoading(true));
 
         try {
-            const result = await authAPI.login(phoneNumber, password);
+            if (loginMode === 'password') {
+                const result = await authAPI.login(phoneNumber, password);
 
-            if (result.success && result.data.tokens) {
-                await AsyncStorage.setItem('accessToken', result.data.tokens.accessToken);
-                await AsyncStorage.setItem('refreshToken', result.data.tokens.refreshToken);
-                await AsyncStorage.setItem('user', JSON.stringify(result.data.user));
+                if (result.success && result.data.tokens) {
+                    await AsyncStorage.setItem('accessToken', result.data.tokens.accessToken);
+                    await AsyncStorage.setItem('refreshToken', result.data.tokens.refreshToken);
+                    await AsyncStorage.setItem('user', JSON.stringify(result.data.user));
 
-                dispatch(setUser(result.data.user));
-                dispatch(setTokens(result.data.tokens));
+                    dispatch(setUser(result.data.user));
+                    dispatch(setTokens(result.data.tokens));
 
-                navigation.replace('Home');
+                    navigation.replace('Home');
+                } else {
+                    Alert.alert('Access Denied', 'Invalid credentials provided.');
+                }
             } else {
-                Alert.alert('Access Denied', 'Invalid credentials provided.');
+                // OTP Mode
+                await authAPI.sendOTP(phoneNumber);
+                navigation.navigate('OTPVerification', { phoneNumber, isLogin: true });
             }
         } catch (error) {
             const message = error.response?.data?.message || 'Login failed. Please check your connection.';
@@ -117,6 +129,22 @@ const LoginScreen = ({ navigation }) => {
                     <View style={styles.formCard}>
                         <Text style={styles.welcomeText}>Welcome Back</Text>
 
+                        {/* Login Mode Toggle */}
+                        <View style={styles.toggleContainer}>
+                            <TouchableOpacity
+                                style={[styles.toggleBtn, loginMode === 'password' && styles.toggleBtnActive]}
+                                onPress={() => setLoginMode('password')}
+                            >
+                                <Text style={[styles.toggleText, loginMode === 'password' && styles.toggleTextActive]}>Password</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.toggleBtn, loginMode === 'otp' && styles.toggleBtnActive]}
+                                onPress={() => setLoginMode('otp')}
+                            >
+                                <Text style={[styles.toggleText, loginMode === 'otp' && styles.toggleTextActive]}>OTP Login</Text>
+                            </TouchableOpacity>
+                        </View>
+
                         <View style={styles.inputGroup}>
                             <Ionicons name="call-outline" size={20} color="#94a3b8" style={styles.inputIcon} />
                             <TextInput
@@ -130,18 +158,20 @@ const LoginScreen = ({ navigation }) => {
                             />
                         </View>
 
-                        <View style={styles.inputGroup}>
-                            <Ionicons name="lock-closed-outline" size={20} color="#94a3b8" style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Password"
-                                placeholderTextColor="#64748b"
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry
-                                autoCapitalize="none"
-                            />
-                        </View>
+                        {loginMode === 'password' && (
+                            <View style={styles.inputGroup}>
+                                <Ionicons name="lock-closed-outline" size={20} color="#94a3b8" style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Password"
+                                    placeholderTextColor="#64748b"
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    secureTextEntry
+                                    autoCapitalize="none"
+                                />
+                            </View>
+                        )}
 
                         <TouchableOpacity
                             style={styles.loginButton}
@@ -240,11 +270,37 @@ const styles = StyleSheet.create({
         shadowRadius: 20,
     },
     welcomeText: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '600',
         color: '#f1f5f9',
-        marginBottom: 24,
+        marginBottom: 20,
         textAlign: 'center',
+    },
+    toggleContainer: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(15, 23, 42, 0.4)',
+        borderRadius: 12,
+        padding: 4,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(148, 163, 184, 0.1)',
+    },
+    toggleBtn: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: 'center',
+        borderRadius: 8,
+    },
+    toggleBtnActive: {
+        backgroundColor: '#38bdf8',
+    },
+    toggleText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#94a3b8',
+    },
+    toggleTextActive: {
+        color: '#fff',
     },
     inputGroup: {
         flexDirection: 'row',

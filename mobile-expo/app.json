@@ -54,6 +54,12 @@
           "speechRecognitionPermission": "Allow Nirapotta to recognize your speech for SOS triggers."
         }
       ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Nirapotta to detect loud screams and emergency calls."
+        }
+      ],
       "@react-native-community/datetimepicker"
     ],
     "web": {

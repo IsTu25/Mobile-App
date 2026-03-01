@@ -14,19 +14,21 @@ export const authAPI = {
   },
 
   // Verify ID Card
-  verifyIDCard: async (imageUri) => {
+  verifyIDCard: async (imageUri, idType, idNumber) => {
     const formData = new FormData();
     formData.append('idCard', {
       uri: imageUri,
       name: 'id_card.jpg',
       type: 'image/jpeg',
     });
+    formData.append('idType', idType);
+    formData.append('idNumber', idNumber);
 
     const response = await api.post('/auth/verify-id-card', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-      transformRequest: (data, headers) => {
+      transformRequest: (data) => {
         return data; // Prevent axios from stringifying FormData
       },
     });

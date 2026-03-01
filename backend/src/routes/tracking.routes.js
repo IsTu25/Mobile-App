@@ -8,7 +8,7 @@ const fs = require('fs');
 // Start Tracking (Auth required)
 router.post('/start', authenticateToken, async (req, res, next) => {
     try {
-        const session = await trackingService.startSession(req.user.id);
+        const session = await trackingService.startSession(req.user._id);
         const trackingUrl = `${req.protocol}://${req.get('host')}/track/${session._id}`;
 
         res.status(201).json({
@@ -48,6 +48,16 @@ router.post('/stop', authenticateToken, async (req, res, next) => {
             success: true,
             data: session
         });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// End Tracking Session (RESTful alternative to /stop)
+router.delete('/:sessionId/end', authenticateToken, async (req, res, next) => {
+    try {
+        const session = await trackingService.stopSession(req.params.sessionId);
+        res.status(200).json({ success: true, data: session });
     } catch (error) {
         next(error);
     }

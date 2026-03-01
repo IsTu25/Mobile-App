@@ -51,8 +51,8 @@ echo "🔄 Updating IP from $OLD_IP to $NEW_IP..."
 echo ""
 
 # Files to update
-FILES=(
     "mobile-expo/src/api/apiClient.js"
+    "backend/server.js"
     "backend/test-danger-api.js"
     "backend/test-comprehensive.js"
     "backend/test-interactive.js"

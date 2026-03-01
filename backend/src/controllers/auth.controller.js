@@ -16,10 +16,19 @@ class AuthController {
       }
 
       const imagePath = req.file.path;
-      console.log('Verifying ID card at:', imagePath);
+      const { idType, idNumber } = req.body;
+
+      if (!idType || !idNumber) {
+        return res.status(400).json({
+          success: false,
+          message: 'idType and idNumber are required'
+        });
+      }
+
+      console.log(`Verifying ${idType} (${idNumber}) at:`, imagePath);
 
       try {
-        const result = await verificationService.verifyStudentId(imagePath);
+        const result = await verificationService.verifyId(imagePath, idType, idNumber);
 
         console.log('Verification Result:', result);
 

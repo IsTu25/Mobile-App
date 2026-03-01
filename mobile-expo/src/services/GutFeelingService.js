@@ -1,10 +1,11 @@
 import { Accelerometer, Gyroscope } from 'expo-sensors';
-import axios from 'axios';
+import api from '../api/apiClient';
+import { AI_SERVER_URL } from '../config/constants';
 
 // Configuration
 const SAMPLE_RATE = 20; // ms (approx 50Hz)
 const WINDOW_SIZE = 128; // samples needed for 1 inference
-const API_URL = 'http://192.168.0.104:5001/predict'; // Python AI Server
+const API_URL = `${AI_SERVER_URL}/predict`; // Python AI Server
 
 class GutFeelingService {
     constructor() {
@@ -79,8 +80,10 @@ class GutFeelingService {
     async analyzeBuffer(buffer) {
         try {
             // console.log("[GutFeeling] Sending data for inference...");
-            const response = await axios.post(API_URL, {
+            const response = await api.post(API_URL, {
                 sensor_data: buffer
+            }, {
+                baseURL: '', // Absolute URL
             });
 
             const { risk_score, status } = response.data;

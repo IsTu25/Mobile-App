@@ -33,7 +33,7 @@ router.post('/submit', authenticateToken, upload.array('evidence', 5), async (re
         // Create crime report
         const crimeReport = new CrimeReport({
             reportId,
-            userId: req.user.userId,
+            userId: req.user._id,
             category,
             title,
             description,
@@ -49,7 +49,7 @@ router.post('/submit', authenticateToken, upload.array('evidence', 5), async (re
 
         await crimeReport.save();
 
-        console.log(`📋 Crime report submitted: ${reportId} by ${req.user.userId}`);
+        console.log(`📋 Crime report submitted: ${reportId} by ${req.user._id}`);
 
         res.status(201).json({
             success: true,
@@ -72,7 +72,7 @@ router.post('/submit', authenticateToken, upload.array('evidence', 5), async (re
  */
 router.get('/my-reports', authenticateToken, async (req, res, next) => {
     try {
-        const reports = await CrimeReport.find({ userId: req.user.userId })
+        const reports = await CrimeReport.find({ userId: req.user._id })
             .sort({ createdAt: -1 })
             .select('-adminNotes -reviewedBy');
 
@@ -101,7 +101,7 @@ router.get('/:reportId', authenticateToken, async (req, res, next) => {
         }
 
         // Only allow user to view their own report (unless admin - future feature)
-        if (report.userId !== req.user.userId) {
+        if (!report.userId.equals(req.user._id)) {
             return res.status(403).json({
                 success: false,
                 message: 'Access denied'

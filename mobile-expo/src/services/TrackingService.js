@@ -32,6 +32,12 @@ const sendLocationUpdate = async (location) => {
                 accuracy: location.coords.accuracy
             });
             console.log('[Tracking] Location updated:', location.coords.latitude, location.coords.longitude);
+
+            // Task 1c: Sync User.lastKnownLocation
+            await apiClient.patch('/user/location', {
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude
+            });
         } catch (err) {
             console.error('[Tracking] Update failed:', err);
         }
@@ -82,7 +88,6 @@ const TrackingService = {
                 console.warn('[Tracking] Background Start Failed (Fallback to Foreground):', bgError.message);
 
                 // FALLBACK: Foreground Watcher
-                // This works while app is open. Best we can do in Expo Go without config plugins.
                 if (foregroundSubscription) {
                     foregroundSubscription.remove();
                 }
@@ -108,7 +113,8 @@ const TrackingService = {
     stopSharing: async () => {
         try {
             if (currentSessionId) {
-                await apiClient.post('/tracking/stop', { sessionId: currentSessionId });
+                // Task 2b: Fix TrackingService to end session on backend
+                await apiClient.delete(`/tracking/${currentSessionId}/end`);
                 currentSessionId = null;
             }
 

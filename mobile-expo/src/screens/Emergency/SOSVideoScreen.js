@@ -11,11 +11,12 @@ import {
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { emergencyAPI } from '../../api/emergencyAPI';
 import * as Location from 'expo-location';
-import { useDispatch } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { clearActiveAlert } from '../../store/slices/emergencySlice';
 
 const SOSVideoScreen = ({ navigation }) => {
     const dispatch = useDispatch();
+    const { activeAlert } = useSelector(state => state.emergency);
     const [permission, requestPermission] = useCameraPermissions();
     const [micPermission, requestMicPermission] = useMicrophonePermissions();
     const [isRecording, setIsRecording] = useState(false);
@@ -100,8 +101,11 @@ const SOSVideoScreen = ({ navigation }) => {
             });
 
             Alert.alert('Evidence Sent', 'Video evidence has been emailed to the nearest police station.');
-            dispatch(clearActiveAlert());
-            navigation.goBack();
+            if (activeAlert?.alertId) {
+                navigation.navigate('SOSStatus', { alertId: activeAlert.alertId });
+            } else {
+                navigation.navigate('Home');
+            }
         } catch (error) {
             console.error('Upload failed:', error);
             Alert.alert('Error', 'Failed to upload video evidence.');

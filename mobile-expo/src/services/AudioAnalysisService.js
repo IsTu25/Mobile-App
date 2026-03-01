@@ -1,13 +1,14 @@
 import { Audio } from 'expo-av';
 import { deleteAsync } from 'expo-file-system/legacy';
-import axios from 'axios';
+import api from '../api/apiClient';
+import { AI_SERVER_URL } from '../config/constants';
 
 class AudioAnalysisService {
     constructor() {
         this.recording = null;
         this.isMonitoring = false;
         this.onDangerDetected = null;
-        this.apiUrl = 'http://192.168.0.104:5001/analyze-audio';
+        this.apiUrl = `${AI_SERVER_URL}/analyze-audio`;
         this.recordingInterval = null;
         this.dangerThreshold = 0.75; // Trigger SOS if danger confidence > 75%
     }
@@ -155,11 +156,12 @@ class AudioAnalysisService {
                 name: 'audio.m4a',
             });
 
-            const response = await axios.post(this.apiUrl, formData, {
+            const response = await api.post(this.apiUrl, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
                 timeout: 5000,
+                baseURL: '', // Clear baseURL to use absolute apiUrl
             });
 
             return response.data;

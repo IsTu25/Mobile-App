@@ -23,6 +23,8 @@ const RegisterScreen = ({ navigation }) => {
   const [loading, setLoadingState] = useState(false);
 
   // Verification State
+  const [idType, setIdType] = useState('nid'); // default to nid
+  const [idNumber, setIdNumber] = useState('');
   const [idCardImage, setIdCardImage] = useState(null);
   const [isIdVerified, setIsIdVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -35,6 +37,11 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   const pickIdCard = async () => {
+    if (!idNumber.trim()) {
+      Alert.alert('Required', 'Please enter your ID Number first.');
+      return;
+    }
+
     // Request permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -55,6 +62,11 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   const takeIdCardPhoto = async () => {
+    if (!idNumber.trim()) {
+      Alert.alert('Required', 'Please enter your ID Number first.');
+      return;
+    }
+
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Sorry, we need camera permissions to make this work!');
@@ -75,26 +87,26 @@ const RegisterScreen = ({ navigation }) => {
   const verifyIdCard = async (uri) => {
     setVerifying(true);
     try {
-      const response = await authAPI.verifyIDCard(uri);
+      const response = await authAPI.verifyIDCard(uri, idType, idNumber);
 
       if (response.success && response.is_valid) {
         setIsIdVerified(true);
         setStudentData(response.extracted_data);
 
-        // Auto-fill available data
-        if (response.extracted_data.student_name) {
-          setFullName(response.extracted_data.student_name);
+        // Auto-fill available data if name is returned
+        if (response.extracted_data?.name) {
+          setFullName(response.extracted_data.name);
         }
 
-        Alert.alert('Success', 'Student Identity Verified Successfully!');
+        Alert.alert('Success', 'Identity Verified Successfully!');
       } else {
         setIsIdVerified(false);
         setStudentData(null);
-        Alert.alert('Verification Failed', response.reason || 'Could not verify student ID.');
+        Alert.alert('Verification Failed', response.reason || 'Could not verify ID.');
       }
     } catch (error) {
       console.error('Verification Error:', error);
-      Alert.alert('Error', 'Failed to verify ID card. Please try again.');
+      Alert.alert('Error', error.response?.data?.message || 'Failed to verify ID card. Please try again.');
       setIsIdVerified(false);
     } finally {
       setVerifying(false);
@@ -164,30 +176,61 @@ const RegisterScreen = ({ navigation }) => {
       <Text style={styles.sectionHeader}>1. Identity Verification</Text>
 
       <View style={styles.verificationContainer}>
+        <Text style={styles.label}>Select ID Type</Text>
+        <View style={styles.idTypeContainer}>
+          <TouchableOpacity
+            style={[styles.idTypeButton, idType === 'nid' && styles.idTypeButtonActive]}
+            onPress={() => !isIdVerified && setIdType('nid')}
+            disabled={isIdVerified}>
+            <Text style={[styles.idTypeButtonText, idType === 'nid' && styles.idTypeButtonTextActive]}>
+              National ID (NID)
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.idTypeButton, idType === 'birth_certificate' && styles.idTypeButtonActive]}
+            onPress={() => !isIdVerified && setIdType('birth_certificate')}
+            disabled={isIdVerified}>
+            <Text style={[styles.idTypeButtonText, idType === 'birth_certificate' && styles.idTypeButtonTextActive]}>
+              Birth Certificate
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <TextInput
+          style={[styles.input, isIdVerified && styles.inputLocked]}
+          placeholder="Enter ID Number"
+          value={idNumber}
+          onChangeText={setIdNumber}
+          keyboardType="numeric"
+          editable={!isIdVerified}
+        />
+
         {idCardImage ? (
           <Image source={{ uri: idCardImage }} style={styles.idCardPreview} />
         ) : (
           <View style={styles.idCardPlaceholder}>
-            <Text style={styles.placeholderText}>No ID Card Selected</Text>
+            <Text style={styles.placeholderText}>No ID Image Selected</Text>
           </View>
         )}
 
         {verifying ? (
           <ActivityIndicator size="large" color="#e63946" style={styles.loader} />
         ) : (
-          <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.uploadButton} onPress={takeIdCardPhoto}>
-              <Text style={styles.uploadButtonText}>📷 Camera</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.uploadButton} onPress={pickIdCard}>
-              <Text style={styles.uploadButtonText}>🖼️ Gallery</Text>
-            </TouchableOpacity>
-          </View>
+          !isIdVerified && (
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.uploadButton} onPress={takeIdCardPhoto}>
+                <Text style={styles.uploadButtonText}>📷 Camera</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.uploadButton} onPress={pickIdCard}>
+                <Text style={styles.uploadButtonText}>🖼️ Gallery</Text>
+              </TouchableOpacity>
+            </View>
+          )
         )}
 
         {isIdVerified && (
           <View style={styles.verifiedBadge}>
-            <Text style={styles.verifiedText}>✅ Verified: {studentData?.student_id}</Text>
+            <Text style={styles.verifiedText}>✅ Verified: {idNumber}</Text>
           </View>
         )}
       </View>
@@ -397,6 +440,41 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#999',
     fontSize: 12,
+  },
+  label: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+    fontWeight: '600',
+  },
+  idTypeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 15,
+  },
+  idTypeButton: {
+    flex: 0.48,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    backgroundColor: '#f9f9f9',
+    alignItems: 'center',
+  },
+  idTypeButtonActive: {
+    borderColor: '#e63946',
+    backgroundColor: '#fff1f2',
+  },
+  idTypeButtonText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  idTypeButtonTextActive: {
+    color: '#e63946',
+    fontWeight: 'bold',
   },
 });
 

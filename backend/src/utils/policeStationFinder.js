@@ -1,6 +1,4 @@
-const fs = require('fs');
-const path = require('path');
-const csv = require('csv-parser');
+const PoliceStation = require('../models/PoliceStation');
 
 /**
  * Calculate distance between two coordinates using Haversine formula
@@ -26,37 +24,6 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * Load police stations from CSV file
- * @returns {Promise<Array>} Array of police station objects
- */
-function loadPoliceStations() {
-    return new Promise((resolve, reject) => {
-        const stations = [];
-        const csvPath = path.join(__dirname, '../../data/police_stations.csv');
-
-        fs.createReadStream(csvPath)
-            .pipe(csv())
-            .on('data', (row) => {
-                stations.push({
-                    name: row.name,
-                    district: row.district,
-                    division: row.division,
-                    latitude: parseFloat(row.latitude),
-                    longitude: parseFloat(row.longitude),
-                    email: row.email,
-                    phone: row.phone,
-                });
-            })
-            .on('end', () => {
-                resolve(stations);
-            })
-            .on('error', (error) => {
-                reject(error);
-            });
-    });
-}
-
-/**
  * Find the nearest police station to given coordinates
  * @param {number} userLat - User's latitude
  * @param {number} userLon - User's longitude
@@ -64,30 +31,25 @@ function loadPoliceStations() {
  */
 async function findNearestPoliceStation(userLat, userLon) {
     try {
-        const stations = await loadPoliceStations();
+        const stations = await PoliceStation.aggregate([
+            {
+                $geoNear: {
+                    near: { type: "Point", coordinates: [userLon, userLat] },
+                    distanceField: "distance",
+                    spherical: true,
+                    query: { isActive: true }
+                }
+            },
+            { $limit: 1 }
+        ]);
 
-        let nearestStation = null;
-        let minDistance = Infinity;
+        if (stations.length === 0) return null;
 
-        for (const station of stations) {
-            const distance = calculateDistance(
-                userLat,
-                userLon,
-                station.latitude,
-                station.longitude
-            );
-
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearestStation = {
-                    ...station,
-                    distance: distance,
-                    distanceKm: (distance / 1000).toFixed(2),
-                };
-            }
-        }
-
-        return nearestStation;
+        const station = stations[0];
+        return {
+            ...station,
+            distanceKm: (station.distance / 1000).toFixed(2)
+        };
     } catch (error) {
         console.error('Error finding nearest police station:', error);
         throw error;
@@ -103,27 +65,22 @@ async function findNearestPoliceStation(userLat, userLon) {
  */
 async function findNearestPoliceStations(userLat, userLon, count = 3) {
     try {
-        const stations = await loadPoliceStations();
+        const stations = await PoliceStation.aggregate([
+            {
+                $geoNear: {
+                    near: { type: "Point", coordinates: [userLon, userLat] },
+                    distanceField: "distance",
+                    spherical: true,
+                    query: { isActive: true }
+                }
+            },
+            { $limit: count }
+        ]);
 
-        const stationsWithDistance = stations.map((station) => {
-            const distance = calculateDistance(
-                userLat,
-                userLon,
-                station.latitude,
-                station.longitude
-            );
-
-            return {
-                ...station,
-                distance: distance,
-                distanceKm: (distance / 1000).toFixed(2),
-            };
-        });
-
-        // Sort by distance and return top N
-        return stationsWithDistance
-            .sort((a, b) => a.distance - b.distance)
-            .slice(0, count);
+        return stations.map(station => ({
+            ...station,
+            distanceKm: (station.distance / 1000).toFixed(2)
+        }));
     } catch (error) {
         console.error('Error finding nearest police stations:', error);
         throw error;

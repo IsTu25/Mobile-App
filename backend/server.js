@@ -27,10 +27,10 @@ const startServer = async () => {
       console.log('   ====================================');
       console.log(`   🌍 Server running on port ${config.PORT}`);
       console.log(`   🏠 Local access: http://localhost:${config.PORT}`);
-      console.log(`   📱 LAN access:   http://192.168.0.104:${config.PORT}`);
+      console.log(`   📱 LAN access:   http://192.168.0.101:${config.PORT}`);
       console.log(`   🔧 Environment: ${config.NODE_ENV}`);
       console.log(`   📡 API Version: ${config.API_VERSION}`);
-      console.log(`   🏥 Health check: http://192.168.0.104:${config.PORT}/health`);
+      console.log(`   🏥 Health check: http://192.168.0.101:${config.PORT}/health`);
       console.log('   ====================================\n');
     });
 
