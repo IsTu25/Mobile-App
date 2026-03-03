@@ -15,6 +15,7 @@ import MapView, { Marker, Polyline, Heatmap, PROVIDER_GOOGLE } from 'react-nativ
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { dangerAPI } from '../../api/dangerAPI';
+import CONFIG from '../../config/constants';
 
 const { width, height } = Dimensions.get('window');
 
@@ -54,20 +55,47 @@ const SafeRouteScreen = ({ navigation }) => {
     const searchTimeout = useRef(null); // For debounce
 
     useEffect(() => {
-        (async () => {
+        let locationWatcher = null;
+
+        const startWatching = async () => {
             let { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') return;
 
-            let location = await Location.getCurrentPositionAsync({});
+            // 1. Initial Position
+            let initialLoc = await Location.getCurrentPositionAsync({});
             setLocation({
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
+                latitude: initialLoc.coords.latitude,
+                longitude: initialLoc.coords.longitude,
                 latitudeDelta: 0.05,
                 longitudeDelta: 0.05,
             });
+            fetchHeatmapData(initialLoc.coords.latitude, initialLoc.coords.longitude);
 
-            fetchHeatmapData(location.coords.latitude, location.coords.longitude);
-        })();
+            // 2. Continuous Tracking
+            locationWatcher = await Location.watchPositionAsync(
+                {
+                    accuracy: Location.Accuracy.Balanced,
+                    timeInterval: 10000, // Update every 10 seconds
+                    distanceInterval: 50, // Or every 50 meters
+                },
+                (newLoc) => {
+                    const coords = {
+                        latitude: newLoc.coords.latitude,
+                        longitude: newLoc.coords.longitude,
+                        latitudeDelta: 0.05,
+                        longitudeDelta: 0.05,
+                    };
+                    setLocation(coords);
+                    // Optionally re-fetch heatmap if they moved significantly (e.g. 2km)
+                }
+            );
+        };
+
+        startWatching();
+
+        return () => {
+            if (locationWatcher) locationWatcher.remove();
+        };
     }, []);
 
     const fetchHeatmapData = async (lat, lon) => {
@@ -206,11 +234,19 @@ const SafeRouteScreen = ({ navigation }) => {
             // 2. Analyze with Backend AI
             const analyzedRoutes = await Promise.all(potentialRoutes.map(async (route) => {
                 const analysis = await dangerAPI.analyzeRoute(route.coordinates);
-                return { ...route, ...analysis.data };
+                console.log(`[Frontend] Route analysis for ${route.name}:`, analysis.data);
+
+                // Merge data with fallbacks
+                return {
+                    ...route,
+                    ...(analysis.data || {}),
+                    safetyScore: analysis.data?.safetyScore ?? 100,
+                    hotspots: analysis.data?.hotspots || []
+                };
             }));
 
             // 3. Classify & Sort
-            analyzedRoutes.sort((a, b) => parseInt(a.time) - parseInt(b.time));
+            analyzedRoutes.sort((a, b) => (b.safetyScore || 0) - (a.safetyScore || 0)); // Sort by safety by default
             if (analyzedRoutes.length > 0) analyzedRoutes[0].type = 'fastest';
 
             let bestSafety = -1, safestIdx = -1;
@@ -232,8 +268,9 @@ const SafeRouteScreen = ({ navigation }) => {
                 animated: true
             });
         } catch (e) {
-            Alert.alert('Error', 'Failed to analyze routes');
-            console.error(e);
+            console.error('Analysis Error:', e);
+            const errorMsg = e.response?.data?.message || e.message || 'Unknown error';
+            Alert.alert('Analysis Failed', `Could not assess route safety.\n\nDetails: ${errorMsg}\n\nCheck if the backend server is running at ${CONFIG.BASE_IP}`);
         } finally {
             setAnalyzing(false);
         }
@@ -371,8 +408,8 @@ const SafeRouteScreen = ({ navigation }) => {
                                 <Text style={styles.routeTime}>{selectedRoute.hotspots.length} Risk Zones</Text>
                             </View>
                             <View style={styles.scoreBadge}>
-                                <Text style={[styles.scoreValue, { color: selectedRoute.safetyScore > 80 ? '#10b981' : '#f59e0b' }]}>
-                                    {selectedRoute.safetyScore}%
+                                <Text style={[styles.scoreValue, { color: (selectedRoute.safetyScore || 0) > 80 ? '#10b981' : '#f59e0b' }]}>
+                                    {Math.round(selectedRoute.safetyScore || 0)}%
                                 </Text>
                                 <Text style={styles.scoreLabel}>Safety</Text>
                             </View>

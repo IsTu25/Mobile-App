@@ -77,7 +77,7 @@ const DangerStatusBar = ({ riskLevel, riskScore, currentZone, loading }) => {
                     <View style={styles.textContainer}>
                         <Text style={[styles.statusText, { color: textColor }]}>{statusText}</Text>
                         <Text style={[styles.scoreText, { color: textColor }]}>
-                            RISK INDEX: {riskScore}/100
+                            RISK INDEX: {Math.round(riskScore || 0)}/100
                         </Text>
                     </View>
                 </View>

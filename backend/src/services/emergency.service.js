@@ -11,7 +11,14 @@ class EmergencyService {
   /**
    * Create SOS alert
    */
-  async createSOSAlert(userId, location, triggerMethod = 'button') {
+  async createSOSAlert(
+    userId,
+    location,
+    triggerMethod = 'button',
+    matchedHotword = null,
+    transcription = null,
+    voiceConfidence = null
+  ) {
     try {
       // Get user details
       const user = await User.findOne({ userId });
@@ -31,6 +38,10 @@ class EmergencyService {
           coordinates: location.coordinates
         },
         triggerMethod,
+        voiceActivated: triggerMethod === 'voice',
+        matchedHotword,
+        transcription,
+        voiceConfidence,
         status: 'active'
       });
 
@@ -50,20 +61,24 @@ class EmergencyService {
           notifiedAt: new Date()
         });
 
-        // If station has API integration, send alert via API (mocked log)
-        console.log(`🚓 Alerted police station: ${station.name} (${Math.round(station.distance)}m away)`);
+        console.log(`🚓 Alerting police station: ${station.name} (${Math.round(station.distance)}m away)`);
 
-        // NEW: Send SMS to Police Station if phone number exists
+        // Send SMS to Police Station
         if (station.phone) {
           const coordinatesStr = `${location.coordinates[1]},${location.coordinates[0]}`;
-          // Use trackingUrl if provided
           const locationUrl = location.trackingUrl
             ? location.trackingUrl
             : `https://maps.google.com/?q=${location.coordinates[1]},${location.coordinates[0]}`;
 
+          // Add voice info to SMS if applicable
+          let voiceInfo = '';
+          if (triggerMethod === 'voice') {
+            voiceInfo = ` [VOICE: "${matchedHotword}"]`;
+          }
+
           await smsService.sendEmergencyAlert(
             station.phone,
-            user.fullName,
+            user.fullName + voiceInfo,
             locationUrl,
             coordinatesStr
           );
@@ -72,16 +87,21 @@ class EmergencyService {
 
       // Notify emergency contacts via SMS
       if (user.emergencyContacts && user.emergencyContacts.length > 0) {
-        // Use trackingUrl if provided, otherwise fallback to static Google Maps link
         const locationUrl = location.trackingUrl
           ? location.trackingUrl
           : `https://maps.google.com/?q=${location.coordinates[1]},${location.coordinates[0]}`;
 
         for (const contact of user.emergencyContacts) {
           const coordinatesStr = `${location.coordinates[1]},${location.coordinates[0]}`;
+
+          let voiceInfo = '';
+          if (triggerMethod === 'voice') {
+            voiceInfo = ` [VOICE: "${matchedHotword}"]`;
+          }
+
           const smsResult = await smsService.sendEmergencyAlert(
             contact.phone,
-            user.fullName,
+            user.fullName + voiceInfo,
             locationUrl,
             coordinatesStr
           );
@@ -100,13 +120,16 @@ class EmergencyService {
         location.coordinates[0],
         location.coordinates[1],
         500,
-        '🚨 SOS Alert Nearby',
-        `Someone needs help nearby. Please assist if safe to do so.`,
+        triggerMethod === 'voice' ? '🚨 VOICE SOS ACTIVATED' : '🚨 SOS Alert Nearby',
+        triggerMethod === 'voice'
+          ? `${user.fullName} screamed "${matchedHotword}". Help needed!`
+          : `${user.fullName} needs help nearby. Please assist if safe to do so.`,
         {
           type: 'sos_alert',
           alertId: alert.alertId,
           latitude: location.coordinates[1].toString(),
-          longitude: location.coordinates[0].toString()
+          longitude: location.coordinates[0].toString(),
+          voiceTriggered: (triggerMethod === 'voice').toString()
         }
       );
 
@@ -120,11 +143,7 @@ class EmergencyService {
 
       await alert.save();
 
-      console.log(`✅ SOS Alert created: ${alert.alertId}`);
-      console.log(`   - Notified ${nearestStations.length} police stations`);
-      console.log(`   - Notified ${alert.notifiedContacts.length} emergency contacts`);
-      console.log(`   - Notified ${alert.notifiedNearbyUsers.length} nearby users`);
-
+      console.log(`✅ SOS Alert created: ${alert.alertId} (${triggerMethod})`);
       return alert;
     } catch (error) {
       console.error('❌ Error creating SOS alert:', error);

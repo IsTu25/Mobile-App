@@ -101,16 +101,13 @@ const SOSVideoScreen = ({ navigation }) => {
             });
 
             Alert.alert('Evidence Sent', 'Video evidence has been emailed to the nearest police station.');
-            if (activeAlert?.alertId) {
-                navigation.navigate('SOSStatus', { alertId: activeAlert.alertId });
-            } else {
-                navigation.navigate('Home');
-            }
+            dispatch(clearActiveAlert()); // Reset UI state so button is ready again
+            navigation.navigate('Home');
         } catch (error) {
             console.error('Upload failed:', error);
             Alert.alert('Error', 'Failed to upload video evidence.');
             dispatch(clearActiveAlert());
-            navigation.goBack();
+            navigation.navigate('Home');
         } finally {
             setUploading(false);
             setUploadProgress(0);

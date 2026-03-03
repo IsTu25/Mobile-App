@@ -19,7 +19,8 @@
   "license": "ISC",
   "description": "Community Safety Reporting System Backend API",
   "dependencies": {
-    "axios": "^1.6.0",
+    "@google-cloud/speech": "^7.2.1",
+    "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
     "canvas": "^3.2.0",
     "cors": "^2.8.5",
@@ -37,6 +38,7 @@
     "mongoose": "^8.20.2",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^7.0.11",
+    "socket.io": "^4.8.3",
     "twilio": "^5.0.0"
   },
   "devDependencies": {

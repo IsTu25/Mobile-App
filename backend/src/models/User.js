@@ -148,6 +148,23 @@ const userSchema = new mongoose.Schema({
   refreshToken: {
     type: String,
     select: false
+  },
+
+  // Voice Hotwords
+  hotWords: {
+    type: [String],
+    default: ['help', 'bachao', 'save me', 'police', 'emergency'],
+    validate: {
+      validator: function (v) {
+        if (!Array.isArray(v)) return false;
+        return v.every(word => typeof word === 'string' && word.trim().length > 0);
+      },
+      message: 'Each hotword must be a non-empty string'
+    },
+    set: function (v) {
+      if (!Array.isArray(v)) return v;
+      return v.map(word => word.toLowerCase().trim());
+    }
   }
 
 }, {

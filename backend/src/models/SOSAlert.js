@@ -7,7 +7,7 @@ const sosAlertSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  
+
   // User Info
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -17,7 +17,7 @@ const sosAlertSchema = new mongoose.Schema({
   },
   userName: String,
   userPhone: String,
-  
+
   // Location (2dsphere for geospatial queries)
   location: {
     type: {
@@ -31,7 +31,7 @@ const sosAlertSchema = new mongoose.Schema({
     }
   },
   address: String,
-  
+
   // Alert Details
   timestamp: {
     type: Date,
@@ -45,10 +45,34 @@ const sosAlertSchema = new mongoose.Schema({
   },
   triggerMethod: {
     type: String,
-    enum: ['button', 'gesture'],
-    default: 'button'
+    enum: ['button', 'gesture', 'voice', 'auto', 'other'],
+    default: 'button',
+    index: true
   },
-  
+
+  voiceActivated: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+
+  matchedHotword: {
+    type: String,
+    default: null
+  },
+
+  transcription: {
+    type: String,
+    default: null
+  },
+
+  voiceConfidence: {
+    type: Number,
+    min: 0,
+    max: 1,
+    default: null
+  },
+
   // Notifications Sent
   notifiedPoliceStations: [{
     stationId: mongoose.Schema.Types.ObjectId,
@@ -56,20 +80,20 @@ const sosAlertSchema = new mongoose.Schema({
     distance: Number,
     notifiedAt: Date
   }],
-  
+
   notifiedContacts: [{
     contactName: String,
     contactPhone: String,
     notifiedAt: Date,
     deliveryStatus: String
   }],
-  
+
   notifiedNearbyUsers: [{
     userId: mongoose.Schema.Types.ObjectId,
     distance: Number,
     notifiedAt: Date
   }],
-  
+
   // Live Tracking
   locationUpdates: [{
     coordinates: [Number], // [longitude, latitude]
@@ -79,14 +103,14 @@ const sosAlertSchema = new mongoose.Schema({
     },
     accuracy: Number
   }],
-  
+
   // Response
   respondedBy: String, // Police officer ID or username
   respondedAt: Date,
   responseNotes: String,
-  
+
   resolvedAt: Date
-  
+
 }, {
   timestamps: true
 });

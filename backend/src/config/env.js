@@ -6,6 +6,7 @@ module.exports = {
     NODE_ENV: process.env.NODE_ENV || 'development',
     PORT: process.env.PORT || 3000,
     API_VERSION: process.env.API_VERSION || 'v1',
+    SERVER_URL: process.env.SERVER_URL || 'localhost',
 
     // Database
     MONGODB_URI: process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/safety-app',

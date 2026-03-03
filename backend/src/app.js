@@ -8,6 +8,7 @@ const { errorHandler, notFoundHandler } = require('./middleware/error.middleware
 // Import routes
 const authRoutes = require('./routes/auth.routes');
 const emergencyRoutes = require('./routes/emergency.routes');
+const voiceRoutes = require('./routes/voice.routes');
 
 // Create Express app
 const app = express();
@@ -51,6 +52,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', require('./routes/user.routes'));
 app.use('/api/crime-reports', require('./routes/crime-report.routes'));
 app.use('/api/emergency', emergencyRoutes);
+app.use('/api/voice', voiceRoutes);
 app.use('/api/recognition', require('./routes/recognition.routes'));
 app.use('/api/danger', require('./routes/danger-prediction.routes')); // NEW: Danger prediction AI
 app.use('/api/police', require('./routes/policeRoutes')); // NEW: Police Station Finder

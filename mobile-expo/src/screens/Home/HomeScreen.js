@@ -43,7 +43,6 @@ import apiClient from '../../api/apiClient';
 
 import VoiceTriggerService from '../../services/VoiceTriggerService';
 import GutFeelingService from '../../services/GutFeelingService';
-import TrackingService from '../../services/TrackingService';
 import AudioAnalysisService from '../../services/AudioAnalysisService';
 import ScreamDetectionService from '../../services/ScreamDetectionService';
 import PoliceStationService from '../../services/PoliceStationService';
@@ -64,8 +63,6 @@ const HomeScreen = ({ navigation }) => {
   const [triggerPhrase, setTriggerPhrase] = useState('help');
   const [voiceSensitivity, setVoiceSensitivity] = useState(0.7); // 70% volume required
   const [voiceMode, setVoiceMode] = useState('loud'); // 'loud', 'any', 'scream_only'
-  const [isTracking, setIsTracking] = useState(false);
-  const [trackingUrl, setTrackingUrl] = useState(null);
 
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
@@ -104,27 +101,6 @@ const HomeScreen = ({ navigation }) => {
       (vol, db) => { /* Volume meter */ }
     );
 
-    // 2. Digital Gut Feeling (Start Monitoring)
-    GutFeelingService.startMonitoring();
-    GutFeelingService.setCallback((score) => {
-      // Smoothly update visual score
-      setGutFeelingScore(prev => (prev * 0.7) + (score * 0.3));
-
-      // Auto-Trigger if VERY high risk (e.g. > 0.95)
-      if (score > 0.95) {
-        Alert.alert("DANGER DETECTED", "High stress patterns detected. Are you safe?", [
-          { text: "I'm Safe", style: "cancel" },
-          { text: "SOS", style: "destructive", onPress: () => handleSOSTrigger() }
-        ]);
-      }
-    });
-
-    // 3. Check Tracking Status
-    (async () => {
-      const active = await TrackingService.isActive();
-      setIsTracking(active);
-    })();
-
     // 4. Push Notifications
     NotificationService.registerForPushNotificationsAsync();
     const cleanupNotifications = NotificationService.initListeners(
@@ -141,15 +117,15 @@ const HomeScreen = ({ navigation }) => {
       }
     );
 
-    // Cleanup
+    // Cleanup on unmount
     return () => {
       VoiceTriggerService.stopListening();
       ScreamDetectionService.stopMonitoring();
       GutFeelingService.stopMonitoring();
       AudioAnalysisService.stopMonitoring();
-      cleanupNotifications();
+      if (cleanupNotifications) cleanupNotifications();
     };
-  }, [triggerPhrase, location]);
+  }, []);
 
   const toggleVoiceMode = async () => {
     if (isVoiceActive) {
@@ -252,48 +228,50 @@ const HomeScreen = ({ navigation }) => {
     );
   };
 
+  const stopNirapottaGuard = async () => {
+    await AudioAnalysisService.stopMonitoring();
+    GutFeelingService.stopMonitoring();
+    setIsAudioProtectionActive(false);
+  };
+
   const toggleAudioProtection = async () => {
     if (isAudioProtectionActive) {
-      await AudioAnalysisService.stopMonitoring();
-      setIsAudioProtectionActive(false);
-      Alert.alert('Audio Protection', 'Deactivated.');
+      await stopNirapottaGuard();
+      Alert.alert('Nirapotta Guard', 'Deactivated.');
     } else {
       Alert.alert(
-        'Activate Audio Protection?',
-        'System will continuously analyze background audio for danger sounds (screams, gunshots, etc.).\n\nNote: May consume battery.',
+        'Activate Nirapotta Guard?',
+        'AI will analyze background audio and movement for distress sounds or stress patterns.\n\nNote: If danger is detected, SOS and automatic video recording will trigger immediately.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Activate',
             onPress: async () => {
-              const result = await AudioAnalysisService.startMonitoring((dangerEvent) => {
-                // Danger detected callback
-                console.log('[HomeScreen] Danger Event:', dangerEvent);
-
-                // Automatic SOS if confidence is high (>= 80%)
+              // 1. Start AI Audio Monitoring
+              const audioResult = await AudioAnalysisService.startMonitoring((dangerEvent) => {
+                console.log('[NirapottaGuard] Audio Event:', dangerEvent);
                 if (dangerEvent.confidence >= 0.8) {
-                  Alert.alert(
-                    '⚠️ CRITICAL DANGER DETECTED',
-                    `Detected: ${dangerEvent.soundClass} (${(dangerEvent.confidence * 100).toFixed(1)}%)\nTriggering SOS Automatically...`
-                  );
+                  // AUTO SOS ON HIGH CONFIDENCE
+                  stopNirapottaGuard();
                   handleSOSTrigger();
-                } else {
-                  // Ask user for lower confidence detections
-                  Alert.alert(
-                    '⚠️ DANGER SOUND DETECTED',
-                    `Detected: ${dangerEvent.soundClass}\nConfidence: ${(dangerEvent.confidence * 100).toFixed(1)}%\n\nTrigger SOS?`,
-                    [
-                      { text: 'False Alarm', style: 'cancel' },
-                      { text: 'SOS', style: 'destructive', onPress: () => handleSOSTrigger() }
-                    ]
-                  );
                 }
               });
 
-              if (result.success) {
+              // 2. Start Digital Gut Feeling (Stress/AI detection)
+              GutFeelingService.startMonitoring();
+              GutFeelingService.setCallback((score) => {
+                setGutFeelingScore(prev => (prev * 0.7) + (score * 0.3));
+                if (score > 0.92) {
+                  // AUTO SOS ON HIGH STRESS
+                  stopNirapottaGuard();
+                  handleSOSTrigger();
+                }
+              });
+
+              if (audioResult.success) {
                 setIsAudioProtectionActive(true);
               } else {
-                Alert.alert('Error', result.error || 'Failed to start audio monitoring');
+                Alert.alert('Error', audioResult.error || 'Failed to start guard');
               }
             }
           }
@@ -302,27 +280,56 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  // Fetch location and danger prediction
+  // Continuous location tracking for risk updates
   useEffect(() => {
-    (async () => {
+    let locationWatcher = null;
+
+    const startWatching = async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Allow location access to use SOS.');
+        Alert.alert('Permission Denied', 'Allow location access to use SOS and Risk Analysis.');
         return;
       }
 
-      let locationResult = await Location.getCurrentPositionAsync({});
-      const currentLocation = {
-        latitude: locationResult.coords.latitude,
-        longitude: locationResult.coords.longitude,
+      // 1. Get initial position
+      let initialLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const initialCoords = {
+        latitude: initialLoc.coords.latitude,
+        longitude: initialLoc.coords.longitude,
       };
-      setLocation(currentLocation);
+      setLocation(initialCoords);
+      fetchDangerPrediction(initialCoords.latitude, initialCoords.longitude);
+      fetchNearestPoliceStation(initialCoords.latitude, initialCoords.longitude);
 
-      // Fetch danger prediction for current location
-      fetchDangerPrediction(currentLocation.latitude, currentLocation.longitude);
-      fetchNearestPoliceStation(currentLocation.latitude, currentLocation.longitude);
-    })();
+      // 2. Watch for changes
+      locationWatcher = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 30000, // Update score stats every 30 seconds
+          distanceInterval: 150, // Or every 150 meters
+        },
+        (newLoc) => {
+          const newCoords = {
+            latitude: newLoc.coords.latitude,
+            longitude: newLoc.coords.longitude,
+          };
+          setLocation(newCoords);
+          fetchDangerPrediction(newCoords.latitude, newCoords.longitude);
+        }
+      );
+    };
 
+    startWatching();
+
+    return () => {
+      if (locationWatcher) {
+        locationWatcher.remove();
+      }
+    };
+  }, []);
+
+  // Visual effects and animations
+  useEffect(() => {
     // Breathing pulse animation for button
     Animated.loop(
       Animated.sequence([
@@ -354,13 +361,9 @@ const HomeScreen = ({ navigation }) => {
       duration: 1000,
       useNativeDriver: true,
     }).start();
-
   }, []);
 
   const [lastNotifiedZone, setLastNotifiedZone] = useState(null);
-
-  // No longer needed as NotificationService handles it
-  useEffect(() => { }, []);
 
   const fetchDangerPrediction = async (latitude, longitude) => {
     setDangerLoading(true);
@@ -447,45 +450,6 @@ const HomeScreen = ({ navigation }) => {
   };
 
 
-  // --- NEW: Live Location Logic ---
-  const handleStartLiveLocation = async () => {
-    setLoading(true);
-    try {
-      const { trackingUrl: url, sessionId } = await TrackingService.startSharing();
-      setTrackingUrl(url);
-      setIsTracking(true);
-
-      navigation.navigate('TrackingViewer', { sessionId, trackingUrl: url });
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Failed to start live location. Ensure backend is running.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStopLiveLocation = async () => {
-    await TrackingService.stopSharing();
-    setIsTracking(false);
-    setTrackingUrl(null);
-    Alert.alert('Live Location', 'Sharing stopped.');
-  };
-
-  const shareTrackingLink = async (url) => {
-    if (!url) return;
-    try {
-      let message = `Follow my live location here: ${url}`;
-      if (location) {
-        message += `\nLoc: ${location.latitude},${location.longitude}`;
-      }
-      await Share.share({
-        message: message,
-      });
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
   const fetchNearestPoliceStation = async (latitude, longitude) => {
     setPoliceLoading(true);
     try {
@@ -502,6 +466,10 @@ const HomeScreen = ({ navigation }) => {
     if (!location) {
       Alert.alert('System Alert', 'Acquiring GPS coordinates. Please wait.');
       return;
+    }
+
+    if (isAudioProtectionActive) {
+      stopNirapottaGuard();
     }
 
     // 1. Check Network Connectivity
@@ -538,18 +506,7 @@ const HomeScreen = ({ navigation }) => {
 
     // --- ONLINE MODE (Existing Logic) ---
 
-    // 2. Start Tracking Automatically
-    let url = null;
-    try {
-      const result = await TrackingService.startSharing();
-      url = result.trackingUrl;
-      setTrackingUrl(url);
-      setIsTracking(true);
-    } catch (e) {
-      console.log('Failed to auto-start tracking during SOS:', e);
-    }
-
-    triggerSOSAlert(url);
+    triggerSOSAlert(null);
   };
 
   const triggerSOSAlert = async (trackUrl) => {
@@ -565,26 +522,6 @@ const HomeScreen = ({ navigation }) => {
       );
       navigation.navigate('SOSVideo');
       dispatch(setActiveAlert(result.data.alert));
-
-      // 3. Open WhatsApp for "Nearest Police"
-      if (trackUrl) {
-        setTimeout(() => {
-          Alert.alert(
-            'SOS Broadcasted',
-            'Share your live location via WhatsApp?',
-            [
-              { text: 'No', style: 'cancel' },
-              {
-                text: 'Open WhatsApp',
-                onPress: () => {
-                  const locStr = location ? ` Loc: ${location.latitude},${location.longitude}` : '';
-                  Linking.openURL(`whatsapp://send?text=HELP! I need help. Follow my live location here: ${trackUrl}${locStr}`);
-                }
-              }
-            ]
-          );
-        }, 1000);
-      }
 
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to trigger SOS';
@@ -711,34 +648,23 @@ const HomeScreen = ({ navigation }) => {
 
 
 
-          {/* Enhanced Audio Controls */}
+          {/* Nirapotta Guard Control */}
           <View style={styles.voiceControlContainer}>
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-              <TouchableOpacity
-                style={[styles.voiceBtn, { flex: 1 }, isVoiceActive ? styles.voiceBtnActive : styles.voiceBtnInactive]}
-                onPress={toggleVoiceMode}
-              >
-                <Ionicons name={isVoiceActive ? "mic" : "mic-off"} size={18} color="#fff" />
-                <Text style={styles.voiceBtnText}>{isVoiceActive ? "VOICE GUARD: ON" : "VOICE GUARD"}</Text>
-              </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.voiceBtn, { flex: 1 }, isScreamDetectionActive ? styles.voiceBtnActive : styles.voiceBtnInactive]}
-                onPress={toggleScreamDetection}
-              >
-                <Ionicons name={isScreamDetectionActive ? "alert" : "notifications-off"} size={18} color="#fff" />
-                <Text style={styles.voiceBtnText}>{isScreamDetectionActive ? "SCREAM DETECT: ON" : "SCREAM DETECT"}</Text>
-              </TouchableOpacity>
-            </View>
 
             <TouchableOpacity
               style={[styles.voiceBtn, isAudioProtectionActive ? styles.voiceBtnActive : styles.voiceBtnInactive]}
               onPress={toggleAudioProtection}
             >
-              <Ionicons name={isAudioProtectionActive ? "shield-checkmark" : "shield-outline"} size={20} color="#fff" />
-              <Text style={styles.voiceBtnText}>
-                {isAudioProtectionActive ? "AI AUDIO ANALYSIS ACTIVE" : "ACTIVATE AI AUDIO PROTECTION"}
-              </Text>
+              <Ionicons name={isAudioProtectionActive ? "shield-checkmark" : "shield-outline"} size={22} color="#fff" />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={styles.voiceBtnText}>
+                  {isAudioProtectionActive ? "NIRAPOTTA GUARD: ONLINE" : "NIRAPOTTA GUARD: OFFLINE"}
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: "600" }}>
+                  AI MONITORING FOR DISTRESS SOUNDS IN REAL-TIME
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -819,35 +745,7 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.actionsContainer}>
             <Text style={styles.sectionHeader}>QUICK ACCESS</Text>
 
-            {/* NEW: Live Location Card */}
-            {isTracking ? (
-              <TouchableOpacity style={[styles.actionCard, { borderColor: '#ef4444', borderWidth: 1 }]} onPress={() => navigation.navigate('TrackingViewer', { trackingUrl })}>
-                <LinearGradient
-                  colors={['#450a0a', '#7f1d1d']}
-                  style={styles.actionCardGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <View style={[styles.actionIconContainer, { borderColor: '#fff', backgroundColor: '#ef4444' }]}>
-                    <Ionicons name="stop" size={22} color="#fff" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.actionTitle}>Viewing Live Tracker</Text>
-                    <Text style={{ color: '#fca5a5', fontSize: 10 }}>Tap to view map or share link</Text>
-                  </View>
-                  <TouchableOpacity onPress={handleStopLiveLocation}>
-                    <Ionicons name="close-circle" size={24} color="#fff" />
-                  </TouchableOpacity>
-                </LinearGradient>
-              </TouchableOpacity>
-            ) : (
-              <QuickActionCard
-                title="Share Live Location"
-                icon="navigate-circle"
-                color="#f472b6"
-                onPress={handleStartLiveLocation}
-              />
-            )}
+
 
             <QuickActionCard
               title="Trusted Contacts"
