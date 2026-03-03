@@ -26,7 +26,7 @@ const SOSVideoScreen = ({ navigation }) => {
     const cameraRef = useRef(null);
 
     // Specific Police Number mentioned by User
-    const POLICE_NUMBER = '01837121760';
+    const POLICE_NUMBER = '01798126118';
 
     useEffect(() => {
         startRecordingFlow();

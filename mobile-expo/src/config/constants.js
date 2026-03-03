@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 // Get base IP from current environment for easier testing
 // In local dev, change this to your machine's local IP (e.g. 192.168.0.104)
-const BASE_IP = '192.168.0.148'; // Updated to match current dev environment IP
+const BASE_IP = '172.20.10.2'; // Updated to match current dev environment IP
 
 export const API_BASE_URL = `http://${BASE_IP}:3000/api`;
 export const AI_SERVER_URL = `http://${BASE_IP}:5001`;

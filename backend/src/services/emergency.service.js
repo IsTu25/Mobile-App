@@ -323,7 +323,7 @@ class EmergencyService {
     if (!user) throw new Error('User not found');
 
     // 1. Find nearest police station
-    let targetStation = await PoliceStation.findOne({ phone: '01837121760' });
+    let targetStation = await PoliceStation.findOne({ phone: '01798126118' });
 
     if (!targetStation) {
       // Fallback to nearest
@@ -348,8 +348,8 @@ class EmergencyService {
     const locationUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
     let subject = `🚨 URGENT: SOS Video Evidence from ${user.fullName}`;
 
-    // Generate Video Link (Assuming server IP for local dev - update this IP to your machine's IP)
-    const videoLink = `http://${config.SERVER_URL || '192.168.0.104:3000'}/uploads/${file.filename}`;
+    // Generate Video Link (Using SERVER_URL and PORT)
+    const videoLink = `http://${config.SERVER_URL || 'localhost'}:${config.PORT || 3000}/uploads/${file.filename}`;
 
     let text = `
 User: ${user.fullName}
@@ -503,12 +503,17 @@ CONFIDENCE: ${(match.confidence * 100).toFixed(1)}%
       console.log('⚠️ Email credentials missing, skipping actual send');
     }
 
-    // 5. Send Video Link via WhatsApp
+    // 5. Send Video Link via WhatsApp & SMS
     try {
-      const waMessage = `🚨 SOS VIDEO EVIDENCE\nUser: ${user.fullName}\nPhone: ${user.phoneNumber}\nLocation: ${locationUrl}\n\nWatch Video:\n${videoLink}`;
-      await smsService.sendWhatsAppMessage(targetStation.phone, waMessage);
+      const sosMessage = `🚨 VIDEO EVIDENCE: ${user.fullName} has uploaded video for the alert. Watch: ${videoLink}`;
+
+      // Send Video Link via WhatsApp
+      await smsService.sendWhatsAppMessage(targetStation.phone, sosMessage);
+
+      // Also Send Video Link via SMS (for redundancy)
+      await smsService.sendEmergencyAlert(targetStation.phone, user.fullName, videoLink);
     } catch (waError) {
-      console.error('Failed to send WhatsApp:', waError);
+      console.error('Failed to send SOS Video Alerts:', waError);
     }
 
     console.log('🏁 Video evidence processing complete');

@@ -4,9 +4,14 @@ const axios = require('axios');
 // Mock SMS service or Twilio integration
 let twilioClient = null;
 
-if (config.SMS_PROVIDER === 'twilio' && config.TWILIO_ACCOUNT_SID && config.TWILIO_AUTH_TOKEN) {
-  const twilio = require('twilio');
-  twilioClient = twilio(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN);
+if (config.TWILIO_ACCOUNT_SID && config.TWILIO_AUTH_TOKEN) {
+  try {
+    const twilio = require('twilio');
+    twilioClient = twilio(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN);
+    console.log('✅ Twilio client initialized for WhatsApp');
+  } catch (e) {
+    console.error('Failed to init Twilio:', e.message);
+  }
 }
 
 class SMSService {
@@ -51,14 +56,15 @@ class SMSService {
           to: cleanPhone
         });
 
-        if (response.data && !response.data.error) {
+        if (response.data && response.data.error === 0) {
           console.log(`✅ OTP SMS sent via sms.net.bd to ${cleanPhone}`);
           return {
             success: true,
             messageId: response.data.request_id || 'sms-net-bd-id'
           };
         } else {
-          throw new Error(response.data.msg || 'SMS sending failed');
+          console.error('❌ sms.net.bd failure:', response.data);
+          throw new Error(response.data.msg || `SMS sending failed with code: ${response.data.error}`);
         }
 
       } else if (twilioClient) {

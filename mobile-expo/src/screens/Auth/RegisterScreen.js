@@ -116,7 +116,7 @@ const RegisterScreen = ({ navigation }) => {
   const handleNext = async () => {
     // Check ID Verification first
     if (!isIdVerified) {
-      Alert.alert('Verification Required', 'Please upload and verify your Student ID card first.');
+      Alert.alert('Verification Required', 'Please upload and verify your NID/ birth certificate first.');
       return;
     }
 
@@ -285,7 +285,7 @@ const RegisterScreen = ({ navigation }) => {
       </TouchableOpacity>
 
       {!isIdVerified && (
-        <Text style={styles.helperText}>* You must verify your Student ID to proceed.</Text>
+        <Text style={styles.helperText}>* You must verify your NID/ birth certificate to proceed.</Text>
       )}
 
       <TouchableOpacity

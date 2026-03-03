@@ -83,7 +83,7 @@ const policeStations = [
       coordinates: [90.4125, 23.8103] // General Dhaka area
     },
     address: 'Police HQ, Dhaka',
-    phone: '01837121760', // Matches the Hardcoded SOS Number
+    phone: '01798126118', // Matches the Hardcoded SOS Number
     emergencyHotline: '999',
     email: 'isfakiqbal@iut-dhaka.edu', // Redirect to user for testing
     acceptsDigitalAlerts: true,

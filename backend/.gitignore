@@ -4,3 +4,5 @@ uploads/
 *.log
 .DS_Store
 .vscode/
+.repomix-output.xml
+
